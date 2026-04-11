@@ -44,6 +44,14 @@ The public action contract is published through Git tags:
 Use semver tags for release history and `v1` for the stable adoption surface in workflows.
 When a new semver tag is pushed, the release workflow verifies the repo through Ota, updates the matching major tag, and publishes a GitHub release.
 
+Release prep is Ota-native:
+
+1. `ota run version:bump --version patch`
+2. commit and push `main`
+3. create and push a semver tag such as `v1.0.2`
+
+You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semver value.
+
 ## What v1 does
 
 - runs `ota doctor --json` or `ota receipt --json --archive`
@@ -168,6 +176,7 @@ This repository is also managed through Ota.
 - `ota validate` checks the repo contract.
 - `ota run setup` installs local dependencies.
 - `ota run ci` runs the canonical verification path for this repo.
+- `ota run version:bump --version patch` prepares the next release version without creating a tag.
 
 ## License
 
