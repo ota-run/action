@@ -22,7 +22,7 @@
 
 version: 1
 project:
-  name: ota-run/action
+  name: '@ota-run/action'
   type: application
   description: Official GitHub Action for Ota
 runtimes:
@@ -70,6 +70,20 @@ tasks:
       - setup
     run: npm test && npm run build && git diff --exit-code dist
     safe_for_agent: true
+  version:bump:
+    description: Bump the action version before release
+    notes: |
+      Use this when preparing a release. It updates package.json and package-lock.json and prints the next version.
+      Use `ota run version:bump --version minor` or `--version major` when you want a larger bump.
+      You do not need to know the current version first.
+      The task also accepts `patch`, `prerelease`, or an explicit semver value.
+    inputs:
+      version:
+        description: Version bump selector or explicit semver value
+        default: patch
+    depends_on:
+      - ci
+    run: node lib/bump-version.mjs
 execution:
   preferred: native
 agent:
@@ -90,6 +104,7 @@ agent:
     - dist
     - test
     - .github
+    - lib
     - README.md
     - CHANGELOG.md
     - action.yml
@@ -113,3 +128,7 @@ agent:
     Use `ota run build` to refresh the bundled action output.
     Use `ota run verify:dist` to confirm `dist/` is committed and current.
     Use `ota run ci` as the canonical verification path before release.
+    Use `ota run version:bump --version patch` to prepare the next release version.
+    Use `ota run version:bump --version minor` or `--version major` when you need a larger bump.
+    You do not need to know the current version first.
+    The task also accepts `prerelease` or an explicit semver value.
