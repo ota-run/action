@@ -39,6 +39,42 @@ function parsePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseInstallMode(value) {
+  const mode = String(value ?? "auto").trim().toLowerCase() || "auto";
+  if (mode !== "auto" && mode !== "always" && mode !== "never") {
+    throw new Error(`unsupported install mode: ${mode}`);
+  }
+  return mode;
+}
+
+function normalizeOtaVersion(value) {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return "";
+  }
+  const normalized = String(value).trim();
+  return normalized.startsWith("v") ? normalized : `v${normalized}`;
+}
+
+function otaBinaryName(platform = process.platform) {
+  return platform === "win32" ? "ota.exe" : "ota";
+}
+
+function otaInstallDirectories(env = process.env, platform = process.platform) {
+  const pathApi = platform === "win32" ? path.win32 : path.posix;
+  const directories = [];
+  if (env.OTA_BIN_DIR) {
+    directories.push(env.OTA_BIN_DIR);
+  }
+  if (platform === "win32" && env.LOCALAPPDATA) {
+    directories.push(pathApi.join(env.LOCALAPPDATA, "ota", "bin"));
+  }
+  if (env.HOME) {
+    directories.push(pathApi.join(env.HOME, ".local", "bin"));
+    directories.push(pathApi.join(env.HOME, ".cargo", "bin"));
+  }
+  return [...new Set(directories)];
+}
+
 function buildOtaArgs(inputs) {
   if (inputs.command !== "doctor" && inputs.command !== "receipt") {
     throw new Error(`unsupported command: ${inputs.command}`);
@@ -292,8 +328,12 @@ export {
   deriveStatus,
   findingsForAnnotations,
   inferKind,
+  normalizeOtaVersion,
   normalizeSummary,
+  otaBinaryName,
+  otaInstallDirectories,
   parseBoolean,
+  parseInstallMode,
   parseOtaPayload,
   parsePositiveInteger,
   runUrlFromEnv,

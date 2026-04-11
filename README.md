@@ -62,19 +62,9 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 
 ## Requirements
 
-- `ota` must already be installed on the runner
 - the workflow should use `permissions: pull-requests: write` if `comment-pr` is enabled
 - self-hosted runners should be on Actions Runner `v2.327.1` or later for Node 24-based actions
-
-Install Ota in GitHub Actions with the same official bootstrap path used across Ota repos:
-
-```yaml
-- name: Install ota
-  shell: bash
-  run: |
-    curl -fsSL https://dist.ota.run/install.sh | sh
-    echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-```
+- by default the action installs Ota automatically when it is not already available
 
 ## Usage
 
@@ -85,12 +75,6 @@ permissions:
 
 steps:
   - uses: actions/checkout@v5
-
-  - name: Install ota
-    shell: bash
-    run: |
-      curl -fsSL https://dist.ota.run/install.sh | sh
-      echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
   - name: Ota readiness
     uses: ota-run/action@v1
@@ -142,6 +126,15 @@ steps:
 - `fail-on-error`
   - fail the action when Ota reports a blocked outcome
   - default: `true`
+- `install`
+  - `auto`, `always`, or `never`
+  - default: `auto`
+  - `auto` reuses an existing `ota` binary when present and otherwise installs Ota automatically
+  - `always` installs Ota before running
+  - `never` requires Ota to already be available
+- `ota-version`
+  - optional installer version such as `v1.0.1` or `1.0.1`
+  - when set, the action installs that version through the official installer
 - `ota-bin`
   - Ota binary name or path
   - default: `ota`
@@ -168,6 +161,7 @@ steps:
 - `receipt` is the better default for CI because it is archive-friendly and read-only.
 - `doctor` is useful when you want the richer top-level `verdict` and `primary_blocker` semantics.
 - archived receipts are referenced by local path in the summary and uploaded as artifacts when available.
+- use `install: never` on self-hosted runners when Ota is already provisioned and you want the action to fail closed instead of mutating the runner
 
 ## Developing This Repo
 

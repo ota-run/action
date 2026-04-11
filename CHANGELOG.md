@@ -26,6 +26,9 @@
 
 ## Unreleased
 
+## 1.0.2 - 2026-04-11
+
+- made `ota-run/action` self-install `ota` by default through the official installer, with `install` and `ota-version` controls for pinned or pre-provisioned runners.
 - added `ota run version:bump` for Ota-native release preparation in the action repo.
 
 ## 1.0.1 - 2026-04-11

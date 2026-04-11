@@ -75,8 +75,15 @@ inputs:
     description: Fail the action when Ota reports a blocked outcome.
     required: false
     default: "true"
+  install:
+    description: Ota installation mode. Supported values: auto, always, never.
+    required: false
+    default: auto
+  ota-version:
+    description: Optional Ota version to install when the action performs installation.
+    required: false
   ota-bin:
-    description: Ota binary name or path.
+    description: Ota binary name or path to use after installation resolution.
     required: false
     default: ota
   output-path:

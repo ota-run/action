@@ -29,7 +29,11 @@ import {
   commonRootDirectory,
   deriveStatus,
   inferKind,
+  normalizeOtaVersion,
   normalizeSummary,
+  otaBinaryName,
+  otaInstallDirectories,
+  parseInstallMode,
   parseOtaPayload
 } from "../src/lib.js";
 
@@ -61,6 +65,37 @@ test("buildOtaArgs rejects unsupported command", () => {
     () => buildOtaArgs({ command: "up", executionMode: "native", path: "." }),
     /unsupported command/
   );
+});
+
+test("parseInstallMode defaults to auto and rejects unsupported values", () => {
+  assert.equal(parseInstallMode(""), "auto");
+  assert.equal(parseInstallMode("always"), "always");
+  assert.throws(() => parseInstallMode("sometimes"), /unsupported install mode/);
+});
+
+test("normalizeOtaVersion prefixes semver values with v", () => {
+  assert.equal(normalizeOtaVersion("1.2.3"), "v1.2.3");
+  assert.equal(normalizeOtaVersion("v1.2.3"), "v1.2.3");
+  assert.equal(normalizeOtaVersion(""), "");
+});
+
+test("otaInstallDirectories follows official install locations", () => {
+  assert.deepEqual(
+    otaInstallDirectories({ HOME: "/home/ota" }, "linux"),
+    ["/home/ota/.local/bin", "/home/ota/.cargo/bin"]
+  );
+
+  assert.deepEqual(
+    otaInstallDirectories({ LOCALAPPDATA: "C:\\Users\\ota\\AppData\\Local", HOME: "C:\\Users\\ota" }, "win32"),
+    [
+      "C:\\Users\\ota\\AppData\\Local\\ota\\bin",
+      "C:\\Users\\ota\\.local\\bin",
+      "C:\\Users\\ota\\.cargo\\bin"
+    ]
+  );
+
+  assert.equal(otaBinaryName("win32"), "ota.exe");
+  assert.equal(otaBinaryName("linux"), "ota");
 });
 
 test("commonRootDirectory uses shared parent for artifact upload", () => {
