@@ -117,6 +117,14 @@ test("commonRootDirectory handles windows drive roots without duplicating the dr
   assert.equal(root, "D:\\a\\action\\action");
 });
 
+test("commonRootDirectory returns the containing directory for a single windows file", () => {
+  const root = commonRootDirectory([
+    "D:\\a\\action\\action\\.ota-action-output.json"
+  ], path.win32);
+
+  assert.equal(root, "D:\\a\\action\\action");
+});
+
 test("doctor payload derives risky status and blocker summary", () => {
   const payload = parseOtaPayload(JSON.stringify({
     ok: true,

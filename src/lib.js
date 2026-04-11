@@ -248,6 +248,9 @@ function commonRootDirectory(files, pathModule = path) {
   if (resolved.length === 0) {
     throw new Error("at least one artifact file is required");
   }
+  if (resolved.length === 1) {
+    return pathModule.dirname(resolved[0]);
+  }
 
   const parsed = resolved.map((file) => ({
     root: pathModule.parse(file).root,
