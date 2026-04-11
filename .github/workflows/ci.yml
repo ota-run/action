@@ -27,7 +27,8 @@ on:
   pull_request:
 
 jobs:
-  test:
+  repo:
+    name: repo verification
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -36,6 +37,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install ota
         shell: bash
@@ -51,3 +53,30 @@ jobs:
 
       - name: Verify
         run: ota run ci --stream
+
+  hosted-runner-smoke:
+    name: action smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Action smoke test
+        uses: ./
+        with:
+          command: doctor
+          path: .
+          annotate: false
+          artifact-name: ota-smoke-${{ matrix.os }}
