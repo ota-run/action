@@ -1,0 +1,115 @@
+#                █████
+#               ░░███
+#       ██████  ███████    ██████
+#      ███░░███░░░███░    ░░░░░███
+#     ░███ ░███  ░███      ███████
+#     ░███ ░███  ░███ ███ ███░░███
+#     ░░██████   ░░█████ ░░████████
+#      ░░░░░░     ░░░░░   ░░░░░░░░
+#
+#   Copyright (C) 2026 — 2026, Ota. All Rights Reserved.
+#
+#   DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+#
+#   Licensed under the Apache License, Version 2.0. See LICENSE for the full license text.
+#   You may not use this file except in compliance with that License.
+#   Unless required by applicable law or agreed to in writing, software distributed under the
+#   License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+#   either express or implied. See the License for the specific language governing permissions
+#   and limitations under the License.
+#
+#   If you need additional information or have any questions, please email: os@ota.run
+
+version: 1
+project:
+  name: action
+  type: application
+  description: Official GitHub Action for Ota
+runtimes:
+  node: "20"
+tools:
+  npm: "10"
+tasks:
+  setup:
+    description: Install action dependencies
+    notes: |
+      Use this after cloning or when the lockfile changes.
+      Run `ota run setup` before testing or building the action locally.
+    run: npm install
+    safe_for_agent: true
+  test:
+    description: Run the action test suite
+    notes: |
+      Use this to verify the action's command building, summary rendering, and annotation behavior.
+    depends_on:
+      - setup
+    run: npm test
+    safe_for_agent: true
+  build:
+    description: Build the bundled GitHub Action dist output
+    notes: |
+      Use this after source changes so `dist/` stays in sync with `src/`.
+    depends_on:
+      - setup
+    run: npm run build
+    safe_for_agent: true
+  verify:dist:
+    description: Verify the committed dist output is current
+    notes: |
+      Use this after `ota run build` or inside CI to catch uncommitted action bundle drift.
+    depends_on:
+      - build
+    run: git diff --exit-code dist
+    safe_for_agent: true
+  ci:
+    description: Canonical verification path for the action repo
+    notes: |
+      Use this as the default local and CI verification path for the repo.
+      It runs tests, rebuilds `dist/`, and fails if the committed bundle is stale.
+    depends_on:
+      - setup
+    run: npm test && npm run build && git diff --exit-code dist
+    safe_for_agent: true
+execution:
+  preferred: native
+agent:
+  entrypoint: setup
+  default_task: ci
+  safe_tasks:
+    - setup
+    - test
+    - build
+    - verify:dist
+    - ci
+  verify_after_changes:
+    - test
+    - build
+    - verify:dist
+  writable_paths:
+    - src
+    - dist
+    - test
+    - .github
+    - README.md
+    - CHANGELOG.md
+    - action.yml
+    - package.json
+    - package-lock.json
+    - ota.yaml
+    - .gitignore
+  protected_paths:
+    - LICENSE
+  bootstrap:
+    ota:
+      note: Only install ota if it is missing and installation is approved.
+      sh: curl -fsSL https://dist.ota.run/install.sh | sh
+      powershell: irm https://dist.ota.run/install.ps1 | iex
+  notes: |
+    Treat Ota as the default workflow for this repository.
+    Use `ota validate` to verify the repo contract.
+    Use `ota doctor` to inspect readiness and agent guidance.
+    Use `ota run setup` to install dependencies.
+    Use `ota run test` to verify the test suite.
+    Use `ota run build` to refresh the bundled action output.
+    Use `ota run verify:dist` to confirm `dist/` is committed and current.
+    Use `ota run ci` as the canonical verification path before release.
