@@ -34,6 +34,16 @@ This action is intentionally thin:
 
 It does not duplicate repo readiness, diagnosis, or provisioning logic.
 
+## Release Model
+
+The public action contract is published through Git tags:
+
+- immutable semver tags such as `v1.0.0`
+- a moving major tag such as `v1`
+
+Use semver tags for release history and `v1` for the stable adoption surface in workflows.
+When a new semver tag is pushed, the release workflow verifies the repo through Ota, updates the matching major tag, and publishes a GitHub release.
+
 ## What v1 does
 
 - runs `ota doctor --json` or `ota receipt --json --archive`

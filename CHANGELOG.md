@@ -28,3 +28,4 @@
 
 - bootstrapped the official Ota GitHub Action repo with a thin `doctor` and `receipt` integration surface that runs `ota`, emits GitHub summaries and annotations, uploads artifacts, and can update a sticky pull request comment.
 - added a canonical `ota.yaml` contract for the action repo and moved CI onto `ota validate`, `ota run setup`, and `ota run ci`.
+- added a release workflow that verifies semver tags through Ota, updates the matching major action tag, and publishes a GitHub release.
