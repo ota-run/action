@@ -73,10 +73,22 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Create smoke contract
+        shell: pwsh
+        run: |
+          $dir = ".github/fixtures/smoke"
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          @"
+          version: 1
+          project:
+            name: smoke
+            type: application
+          "@ | Set-Content -Path "$dir/ota.yaml" -Encoding utf8
+
       - name: Action smoke test
         uses: ./
         with:
           command: doctor
-          path: .
+          path: .github/fixtures/smoke
           annotate: false
           artifact-name: ota-smoke-${{ matrix.os }}
