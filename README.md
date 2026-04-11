@@ -58,7 +58,7 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 - writes a GitHub Actions step summary
 - emits GitHub annotations from Ota findings
 - optionally posts or updates a pull request comment
-- uploads the Ota JSON output and any archived receipt file as workflow artifacts
+- uploads the ota JSON output and any archived receipt file as workflow artifacts
 
 ## Requirements
 
@@ -76,7 +76,7 @@ permissions:
 steps:
   - uses: actions/checkout@v5
 
-  - name: Ota readiness
+  - name: ota readiness
     uses: ota-run/action@v1
     with:
       command: receipt
