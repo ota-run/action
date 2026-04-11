@@ -26,9 +26,9 @@ project:
   type: application
   description: Official GitHub Action for Ota
 runtimes:
-  node: "20"
+  node: "24"
 tools:
-  npm: "10"
+  npm: "11"
 tasks:
   setup:
     description: Install action dependencies

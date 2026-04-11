@@ -26,6 +26,10 @@
 
 ## Unreleased
 
+## 1.0.1 - 2026-04-11
+
+- moved the action runtime and repository workflows to Node 24-compatible GitHub Actions surfaces to remove the hosted-runner Node 20 deprecation warning.
+
 ## 1.0.0 - 2026-04-11
 
 - bootstrapped the official Ota GitHub Action repo with a thin `doctor` and `receipt` integration surface that runs `ota`, emits GitHub summaries and annotations, uploads artifacts, and can update a sticky pull request comment.

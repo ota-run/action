@@ -56,6 +56,7 @@ When a new semver tag is pushed, the release workflow verifies the repo through 
 
 - `ota` must already be installed on the runner
 - the workflow should use `permissions: pull-requests: write` if `comment-pr` is enabled
+- self-hosted runners should be on Actions Runner `v2.327.1` or later for Node 24-based actions
 
 Install Ota in GitHub Actions with the same official bootstrap path used across Ota repos:
 
@@ -75,7 +76,7 @@ permissions:
   pull-requests: write
 
 steps:
-  - uses: actions/checkout@v4
+  - uses: actions/checkout@v5
 
   - name: Install ota
     shell: bash
