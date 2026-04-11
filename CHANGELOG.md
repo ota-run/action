@@ -26,6 +26,12 @@
 
 ## Unreleased
 
+## 1.0.3 - 2026-04-11
+
+- fixed action metadata YAML parsing by quoting colon-bearing descriptions in `action.yml`.
+- fixed Windows artifact root handling for action uploads.
+- added hosted-runner smoke coverage for `ubuntu`, `macos`, and `windows` using a minimal contract fixture in CI.
+
 ## 1.0.2 - 2026-04-11
 
 - made `ota-run/action` self-install `ota` by default through the official installer, with `install` and `ota-version` controls for pinned or pre-provisioned runners.
