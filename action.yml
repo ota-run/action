@@ -20,8 +20,8 @@
 #
 #   If you need additional information or have any questions, please email: os@ota.run
 
-name: Ota
-description: Run Ota in GitHub Actions and publish summaries, annotations, comments, and receipt artifacts.
+name: ota
+description: Run ota in GitHub Actions and publish summaries, annotations, comments, and receipt artifacts.
 author: ota.run
 
 inputs:
