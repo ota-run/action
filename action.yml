@@ -26,7 +26,7 @@ author: ota.run
 
 inputs:
   command:
-    description: Ota command to run. Supported values: doctor, receipt.
+    description: "Ota command to run. Supported values: doctor, receipt."
     required: false
     default: receipt
   path:
@@ -38,7 +38,7 @@ inputs:
     required: false
     default: .
   execution-mode:
-    description: Ota execution mode. Supported values: native, container.
+    description: "Ota execution mode. Supported values: native, container."
     required: false
     default: native
   member:
@@ -76,7 +76,7 @@ inputs:
     required: false
     default: "true"
   install:
-    description: Ota installation mode. Supported values: auto, always, never.
+    description: "Ota installation mode. Supported values: auto, always, never."
     required: false
     default: auto
   ota-version:
@@ -98,7 +98,7 @@ outputs:
   ok:
     description: Whether Ota reported an ok result.
   status:
-    description: Derived action status: ready, risky, or blocked.
+    description: "Derived action status: ready, risky, or blocked."
   output-path:
     description: Path to the captured Ota JSON output.
   archive-path:
