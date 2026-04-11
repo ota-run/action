@@ -22,7 +22,7 @@
 
 version: 1
 project:
-  name: action
+  name: ota-run/action
   type: application
   description: Official GitHub Action for Ota
 runtimes:
