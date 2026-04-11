@@ -243,13 +243,22 @@ function artifactFiles(outputPath, archivePath) {
   return files;
 }
 
-function commonRootDirectory(files) {
-  const resolved = files.map((file) => path.resolve(file));
+function commonRootDirectory(files, pathModule = path) {
+  const resolved = files.map((file) => pathModule.resolve(file));
   if (resolved.length === 0) {
     throw new Error("at least one artifact file is required");
   }
 
-  const split = resolved.map((file) => path.dirname(file).split(path.sep).filter(Boolean));
+  const parsed = resolved.map((file) => ({
+    root: pathModule.parse(file).root,
+    parts: pathModule.dirname(file).slice(pathModule.parse(file).root.length).split(pathModule.sep).filter(Boolean)
+  }));
+  const roots = [...new Set(parsed.map((entry) => entry.root))];
+  if (roots.length > 1) {
+    throw new Error("artifact files must share the same filesystem root");
+  }
+
+  const split = parsed.map((entry) => entry.parts);
   const shared = [];
   const maxDepth = Math.min(...split.map((parts) => parts.length));
 
@@ -262,8 +271,8 @@ function commonRootDirectory(files) {
     break;
   }
 
-  const firstRoot = path.parse(resolved[0]).root;
-  return shared.length === 0 ? firstRoot : path.join(firstRoot, ...shared);
+  const firstRoot = parsed[0].root;
+  return shared.length === 0 ? firstRoot : pathModule.join(firstRoot, ...shared);
 }
 
 function runUrlFromEnv(env) {

@@ -20,6 +20,7 @@
 //
 //   If you need additional information or have any questions, please email: os@ota.run
 
+import path from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -105,6 +106,15 @@ test("commonRootDirectory uses shared parent for artifact upload", () => {
   ]);
 
   assert.equal(root, "/repo");
+});
+
+test("commonRootDirectory handles windows drive roots without duplicating the drive prefix", () => {
+  const root = commonRootDirectory([
+    "D:\\a\\action\\action\\.ota-action-output.json",
+    "D:\\a\\action\\action\\.ota\\receipts\\repo-receipt.json"
+  ], path.win32);
+
+  assert.equal(root, "D:\\a\\action\\action");
 });
 
 test("doctor payload derives risky status and blocker summary", () => {
