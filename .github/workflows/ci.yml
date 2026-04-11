@@ -83,6 +83,10 @@ jobs:
           project:
             name: smoke
             type: application
+          tasks:
+            noop:
+              description: No-op smoke task
+              run: echo ready
           "@ | Set-Content -Path "$dir/ota.yaml" -Encoding utf8
 
       - name: Action smoke test
