@@ -41,6 +41,7 @@ import {
   findingsForAnnotations,
   inferKind,
   normalizeArchivePath,
+  normalizeOtaBinInput,
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,
@@ -50,6 +51,7 @@ import {
   parseOtaPayload,
   parsePositiveInteger,
   runUrlFromEnv,
+  selectPullRequestNumberForComment,
   shouldRetryReceiptWithoutArchive,
   topFinding
 } from "./lib.js";
@@ -154,7 +156,7 @@ async function installOta(version, cwd) {
 async function ensureOtaBinary(inputs, cwd) {
   const installMode = parseInstallMode(inputs.install);
   const requestedVersion = normalizeOtaVersion(inputs.otaVersion);
-  const preferred = inputs.otaBin || "ota";
+  const preferred = normalizeOtaBinInput(inputs.otaBin, cwd);
   const binaryName = otaBinaryName();
   const effectiveInstallMode = requestedVersion && installMode === "auto" ? "always" : installMode;
   const preferredExisting = await resolveExistingBinary(preferred);
@@ -229,15 +231,13 @@ async function uploadArtifacts(artifactName, files, retentionDays) {
   await client.uploadArtifact(artifactName, files, rootDirectory, options);
 }
 
-async function upsertPullRequestComment(token, body) {
-  const pullRequest = github.context.payload.pull_request;
-  if (!pullRequest) {
-    return;
-  }
-
+async function upsertPullRequestComment(token, commentPrOnly, body) {
   const octokit = github.getOctokit(token);
   const { owner, repo } = github.context.repo;
-  const issueNumber = pullRequest.number;
+  const issueNumber = await resolvePullRequestNumber(token, commentPrOnly);
+  if (!issueNumber) {
+    return false;
+  }
 
   const comments = await octokit.paginate(octokit.rest.issues.listComments, {
     owner,
@@ -254,7 +254,7 @@ async function upsertPullRequestComment(token, body) {
       comment_id: existing.id,
       body
     });
-    return;
+    return true;
   }
 
   await octokit.rest.issues.createComment({
@@ -262,6 +262,37 @@ async function upsertPullRequestComment(token, body) {
     repo,
     issue_number: issueNumber,
     body
+  });
+
+  return true;
+}
+
+async function resolvePullRequestNumber(token, commentPrOnly) {
+  const payloadPullRequest = github.context.payload.pull_request;
+  const directNumber = selectPullRequestNumberForComment({
+    payloadPullRequest,
+    commentPrOnly
+  });
+  if (directNumber) {
+    return directNumber;
+  }
+
+  if (commentPrOnly || !github.context.sha) {
+    return null;
+  }
+
+  const octokit = github.getOctokit(token);
+  const { owner, repo } = github.context.repo;
+  const response = await octokit.rest.repos.listPullRequestsAssociatedWithCommit({
+    owner,
+    repo,
+    commit_sha: github.context.sha
+  });
+
+  return selectPullRequestNumberForComment({
+    payloadPullRequest,
+    commentPrOnly,
+    associatedPullRequests: response.data
   });
 }
 
@@ -361,11 +392,16 @@ async function main() {
     const token = inputs.githubToken || process.env.GITHUB_TOKEN;
     if (!token) {
       core.warning("comment-pr is enabled but no github-token was provided; skipping pull request comment");
-    } else if (!isPullRequest) {
-      core.notice("comment-pr requested outside a pull_request event; skipping pull request comment");
     } else {
       try {
-        await upsertPullRequestComment(token, buildCommentBody(summaryMarkdown));
+        const commented = await upsertPullRequestComment(token, commentPrOnly, buildCommentBody(summaryMarkdown));
+        if (!commented) {
+          if (commentPrOnly) {
+            core.notice("comment-pr requested outside a pull_request event; skipping pull request comment");
+          } else {
+            core.notice(`comment-pr requested but no associated pull request was found for commit ${github.context.sha}`);
+          }
+        }
       } catch (error) {
         core.warning(`failed to update pull request comment: ${error instanceof Error ? error.message : String(error)}`);
       }

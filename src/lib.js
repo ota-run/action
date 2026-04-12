@@ -212,6 +212,48 @@ function normalizeArchivePath(archivePath, cwd, pathModule = path) {
   return pathModule.resolve(cwd, archivePath);
 }
 
+function normalizeOtaBinInput(otaBin, cwd, pathModule = path) {
+  const preferred = otaBin && String(otaBin).trim() !== ""
+    ? String(otaBin)
+    : "ota";
+
+  if (
+    preferred.includes("/")
+    || preferred.includes("\\")
+    || pathModule.isAbsolute(preferred)
+  ) {
+    return pathModule.resolve(cwd, preferred);
+  }
+
+  return preferred;
+}
+
+function selectPullRequestNumberForComment({
+  payloadPullRequest,
+  commentPrOnly,
+  associatedPullRequests = []
+}) {
+  if (typeof payloadPullRequest?.number === "number") {
+    return payloadPullRequest.number;
+  }
+
+  if (commentPrOnly) {
+    return null;
+  }
+
+  const openPullRequest = associatedPullRequests.find(
+    (pullRequest) => pullRequest?.state === "open" && typeof pullRequest.number === "number"
+  );
+  if (openPullRequest) {
+    return openPullRequest.number;
+  }
+
+  const fallbackPullRequest = associatedPullRequests.find(
+    (pullRequest) => typeof pullRequest?.number === "number"
+  );
+  return fallbackPullRequest?.number ?? null;
+}
+
 function statusLabel(status) {
   switch (status) {
     case "ready":
@@ -360,6 +402,7 @@ export {
   findingsForAnnotations,
   inferKind,
   normalizeArchivePath,
+  normalizeOtaBinInput,
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,
@@ -369,6 +412,7 @@ export {
   parseOtaPayload,
   parsePositiveInteger,
   runUrlFromEnv,
+  selectPullRequestNumberForComment,
   shouldRetryReceiptWithoutArchive,
   statusLabel,
   topFinding

@@ -31,12 +31,14 @@ import {
   deriveStatus,
   inferKind,
   normalizeArchivePath,
+  normalizeOtaBinInput,
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,
   otaInstallDirectories,
   parseInstallMode,
   parseOtaPayload,
+  selectPullRequestNumberForComment,
   shouldRetryReceiptWithoutArchive,
   topFinding
 } from "../src/lib.js";
@@ -204,6 +206,57 @@ test("normalizeArchivePath resolves relative receipt paths against working direc
   assert.equal(
     normalizeArchivePath("./.ota/receipts/repo-receipt-1.json", "/repo/subdir"),
     path.resolve("/repo/subdir", "./.ota/receipts/repo-receipt-1.json")
+  );
+});
+
+test("normalizeOtaBinInput resolves path-like values from working directory", () => {
+  assert.equal(
+    normalizeOtaBinInput("./bin/ota", "/repo/subdir"),
+    path.resolve("/repo/subdir", "./bin/ota")
+  );
+  assert.equal(
+    normalizeOtaBinInput("ota", "/repo/subdir"),
+    "ota"
+  );
+  assert.equal(
+    normalizeOtaBinInput("C:\\repo\\bin\\ota.exe", "D:\\workspace", path.win32),
+    "C:\\repo\\bin\\ota.exe"
+  );
+});
+
+test("selectPullRequestNumberForComment prefers the event pull request", () => {
+  assert.equal(
+    selectPullRequestNumberForComment({
+      payloadPullRequest: { number: 42 },
+      commentPrOnly: false,
+      associatedPullRequests: [{ number: 7, state: "open" }]
+    }),
+    42
+  );
+});
+
+test("selectPullRequestNumberForComment skips non-pr events when commentPrOnly is true", () => {
+  assert.equal(
+    selectPullRequestNumberForComment({
+      payloadPullRequest: null,
+      commentPrOnly: true,
+      associatedPullRequests: [{ number: 7, state: "open" }]
+    }),
+    null
+  );
+});
+
+test("selectPullRequestNumberForComment uses an associated open pull request when allowed", () => {
+  assert.equal(
+    selectPullRequestNumberForComment({
+      payloadPullRequest: null,
+      commentPrOnly: false,
+      associatedPullRequests: [
+        { number: 7, state: "closed" },
+        { number: 9, state: "open" }
+      ]
+    }),
+    9
   );
 });
 
