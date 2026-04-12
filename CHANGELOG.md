@@ -27,6 +27,8 @@
 ## Unreleased
 
 - added copyable workflow examples under `examples/` for basic readiness, PR comments and annotations, pinned ota versions, and self-hosted preinstalled runners.
+- fixed archived receipt handling so relative `archive_path` values are resolved against `working-directory` before summary and artifact upload logic runs.
+- fixed validate/load failure summaries so the primary contract error stays visible in the step summary and `primary-summary` output.
 
 ## 1.0.3 - 2026-04-11
 

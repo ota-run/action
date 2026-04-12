@@ -30,12 +30,14 @@ import {
   commonRootDirectory,
   deriveStatus,
   inferKind,
+  normalizeArchivePath,
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,
   otaInstallDirectories,
   parseInstallMode,
-  parseOtaPayload
+  parseOtaPayload,
+  topFinding
 } from "../src/lib.js";
 
 test("buildOtaArgs defaults to archived receipt json", () => {
@@ -178,4 +180,28 @@ test("validate failure becomes blocked summary", () => {
   assert.equal(kind, "validate_failure");
   assert.equal(summary.errorCount, 1);
   assert.equal(deriveStatus(kind, summary), "blocked");
+  assert.equal(topFinding(payload, kind)?.summary, "unknown field `foo`");
+
+  const markdown = buildSummaryMarkdown({
+    commandLine: "ota receipt --json .",
+    payload,
+    kind,
+    status: "blocked",
+    summary,
+    archivePath: "",
+    artifactName: "ota-report",
+    outputPath: "/tmp/ota.json",
+    runUrl: null
+  });
+
+  assert.match(markdown, /### Primary/);
+  assert.match(markdown, /\*\*unknown field `foo`\*\*/);
+  assert.match(markdown, /unknown field `foo`/);
+});
+
+test("normalizeArchivePath resolves relative receipt paths against working directory", () => {
+  assert.equal(
+    normalizeArchivePath("./.ota/receipts/repo-receipt-1.json", "/repo/subdir"),
+    path.resolve("/repo/subdir", "./.ota/receipts/repo-receipt-1.json")
+  );
 });

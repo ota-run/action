@@ -179,7 +179,7 @@ function deriveStatus(kind, summary) {
 
 function topFinding(payload, kind) {
   if (kind === "validate_failure") {
-    return null;
+    return normalizeSummary(payload, kind).primaryBlocker;
   }
 
   if (payload.summary?.primary_blocker) {
@@ -191,6 +191,13 @@ function topFinding(payload, kind) {
   }
 
   return null;
+}
+
+function normalizeArchivePath(archivePath, cwd, pathModule = path) {
+  if (!archivePath || String(archivePath).trim() === "") {
+    return "";
+  }
+  return pathModule.resolve(cwd, archivePath);
 }
 
 function statusLabel(status) {
@@ -340,6 +347,7 @@ export {
   deriveStatus,
   findingsForAnnotations,
   inferKind,
+  normalizeArchivePath,
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,

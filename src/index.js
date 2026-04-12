@@ -40,6 +40,7 @@ import {
   deriveStatus,
   findingsForAnnotations,
   inferKind,
+  normalizeArchivePath,
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,
@@ -304,7 +305,10 @@ async function main() {
   const kind = inferKind(payload);
   const summary = normalizeSummary(payload, kind);
   const status = deriveStatus(kind, summary);
-  const archivePath = typeof payload.archive_path === "string" ? payload.archive_path : "";
+  const archivePath = normalizeArchivePath(
+    typeof payload.archive_path === "string" ? payload.archive_path : "",
+    cwd
+  );
   const runUrl = runUrlFromEnv(process.env);
   const artifactName = inputs.artifactName;
   const summaryMarkdown = buildSummaryMarkdown({
@@ -355,7 +359,7 @@ async function main() {
     }
   }
 
-  const primary = topFinding(payload, kind);
+  const primary = topFinding(payload, kind, summary);
   core.setOutput("ok", String(Boolean(payload.ok)));
   core.setOutput("status", status);
   core.setOutput("output-path", outputPath);
