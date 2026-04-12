@@ -87,6 +87,15 @@ steps:
       github-token: ${{ github.token }}
 ```
 
+## Examples
+
+Copyable workflow files live in [examples/](./examples).
+
+- [basic-readiness.yml](./examples/basic-readiness.yml)
+- [pr-comment-and-annotations.yml](./examples/pr-comment-and-annotations.yml)
+- [pinned-ota-version.yml](./examples/pinned-ota-version.yml)
+- [self-hosted-preinstalled.yml](./examples/self-hosted-preinstalled.yml)
+
 ## Inputs
 
 - `command`

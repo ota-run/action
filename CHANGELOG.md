@@ -26,6 +26,8 @@
 
 ## Unreleased
 
+- added copyable workflow examples under `examples/` for basic readiness, PR comments and annotations, pinned ota versions, and self-hosted preinstalled runners.
+
 ## 1.0.3 - 2026-04-11
 
 - fixed action metadata YAML parsing by quoting colon-bearing descriptions in `action.yml`.
