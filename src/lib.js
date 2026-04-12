@@ -105,6 +105,18 @@ function buildOtaArgs(inputs) {
   return args;
 }
 
+function shouldRetryReceiptWithoutArchive(inputs, result) {
+  if (inputs.command !== "receipt" || !parseBoolean(inputs.archive, true)) {
+    return false;
+  }
+  if ((result?.exitCode ?? 0) === 0) {
+    return false;
+  }
+  const stderr = String(result?.stderr || "");
+  return stderr.includes("unexpected argument '--archive'")
+    && stderr.includes("Usage: ota receipt");
+}
+
 function parseOtaPayload(stdout) {
   let payload;
   try {
@@ -357,6 +369,7 @@ export {
   parseOtaPayload,
   parsePositiveInteger,
   runUrlFromEnv,
+  shouldRetryReceiptWithoutArchive,
   statusLabel,
   topFinding
 };

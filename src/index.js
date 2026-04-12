@@ -50,6 +50,7 @@ import {
   parseOtaPayload,
   parsePositiveInteger,
   runUrlFromEnv,
+  shouldRetryReceiptWithoutArchive,
   topFinding
 } from "./lib.js";
 
@@ -286,15 +287,27 @@ async function main() {
     githubToken: core.getInput("github-token")
   };
 
-  const args = buildOtaArgs(inputs);
   const cwd = path.resolve(inputs.workingDirectory);
   const outputPath = path.resolve(cwd, inputs.outputPath);
   const otaBinary = await ensureOtaBinary(inputs, cwd);
-  const commandLine = `${otaBinary} ${args.join(" ")}`;
+  let effectiveInputs = { ...inputs };
+  let args = buildOtaArgs(effectiveInputs);
+  let commandLine = `${otaBinary} ${args.join(" ")}`;
 
   core.info(`Running ${commandLine} in ${cwd}`);
 
-  const result = await runCommand(otaBinary, args, cwd);
+  let result = await runCommand(otaBinary, args, cwd);
+  if (shouldRetryReceiptWithoutArchive(effectiveInputs, result)) {
+    core.notice(
+      "Installed ota does not support `ota receipt --archive`; retrying without archived receipt output"
+    );
+    effectiveInputs = { ...effectiveInputs, archive: "false" };
+    args = buildOtaArgs(effectiveInputs);
+    commandLine = `${otaBinary} ${args.join(" ")}`;
+    core.info(`Retrying ${commandLine} in ${cwd}`);
+    result = await runCommand(otaBinary, args, cwd);
+  }
+
   await fs.writeFile(outputPath, result.stdout, "utf8");
 
   if (result.stderr.trim()) {

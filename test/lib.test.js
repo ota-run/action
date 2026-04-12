@@ -37,6 +37,7 @@ import {
   otaInstallDirectories,
   parseInstallMode,
   parseOtaPayload,
+  shouldRetryReceiptWithoutArchive,
   topFinding
 } from "../src/lib.js";
 
@@ -203,5 +204,40 @@ test("normalizeArchivePath resolves relative receipt paths against working direc
   assert.equal(
     normalizeArchivePath("./.ota/receipts/repo-receipt-1.json", "/repo/subdir"),
     path.resolve("/repo/subdir", "./.ota/receipts/repo-receipt-1.json")
+  );
+});
+
+test("shouldRetryReceiptWithoutArchive only retries the known ota receipt archive incompatibility", () => {
+  assert.equal(
+    shouldRetryReceiptWithoutArchive(
+      { command: "receipt", archive: "true" },
+      {
+        exitCode: 2,
+        stderr: "error: unexpected argument '--archive' found\n\nUsage: ota receipt --json [PATH]\n"
+      }
+    ),
+    true
+  );
+
+  assert.equal(
+    shouldRetryReceiptWithoutArchive(
+      { command: "receipt", archive: "false" },
+      {
+        exitCode: 2,
+        stderr: "error: unexpected argument '--archive' found\n\nUsage: ota receipt --json [PATH]\n"
+      }
+    ),
+    false
+  );
+
+  assert.equal(
+    shouldRetryReceiptWithoutArchive(
+      { command: "doctor", archive: "true" },
+      {
+        exitCode: 2,
+        stderr: "error: unexpected argument '--archive' found\n\nUsage: ota receipt --json [PATH]\n"
+      }
+    ),
+    false
   );
 });
