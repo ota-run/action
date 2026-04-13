@@ -24,6 +24,10 @@
 
 # Changelog
 
+## Unreleased
+
+- fixed `ota run version:bump` semver handling so prerelease identifiers with internal hyphens and explicit build metadata are preserved instead of being truncated.
+
 ## 1.0.5 - 2026-04-13
 
 - added receipt baseline compare support to `ota-run/action`, including `baseline`, `baseline-artifact-name`, and `fail-on-new-blockers` inputs plus gate-aware status and outputs for GitHub-native regression gating.
