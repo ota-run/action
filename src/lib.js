@@ -439,6 +439,27 @@ function runUrlFromEnv(env) {
   return `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;
 }
 
+function pushBaselineProvenanceLines(lines, baseline) {
+  if (!baseline || typeof baseline !== "object") {
+    return;
+  }
+
+  lines.push(`Baseline source: \`${baseline.source || "unknown"}\``);
+
+  if (baseline.selection_path) {
+    lines.push(`Baseline selection: \`${baseline.selection_path}\``);
+  }
+  if (baseline.archive_path) {
+    lines.push(`Baseline archive: \`${baseline.archive_path}\``);
+  }
+  if (baseline.promoted_at) {
+    lines.push(`Baseline promoted: \`${baseline.promoted_at}\``);
+  }
+  if (baseline.archived_at) {
+    lines.push(`Baseline archived: \`${baseline.archived_at}\``);
+  }
+}
+
 function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, archivePath, artifactName, outputPath, runUrl }) {
   const lines = [];
   lines.push("## Ota");
@@ -456,7 +477,7 @@ function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, arc
     if (summary.gate) {
       lines.push(`Gate: **${summary.gate.passed ? "PASSED" : "BLOCKED"}** \`${summary.gate.rule}\``);
     }
-    lines.push(`Baseline source: \`${payload.baseline?.source || "unknown"}\``);
+    pushBaselineProvenanceLines(lines, payload.baseline);
     lines.push(`Current receipt: **${payload.current?.ok ? "READY" : "NOT READY"}**`);
     lines.push(`Diff: introduced ${summary.introduced.count}, resolved ${summary.resolved.count}, unchanged ${summary.unchanged.count}`);
   }
@@ -517,6 +538,7 @@ export {
   parseInstallMode,
   parseOtaPayload,
   parsePositiveInteger,
+  pushBaselineProvenanceLines,
   runUrlFromEnv,
   selectPullRequestNumberForComment,
   shouldRetryReceiptWithoutArchive,

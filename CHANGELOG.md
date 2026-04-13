@@ -26,7 +26,10 @@
 
 ## Unreleased
 
+## 1.0.6 - 2026-04-14
+
 - fixed `ota run version:bump` semver handling so prerelease identifiers with internal hyphens and explicit build metadata are preserved instead of being truncated.
+- added baseline provenance lines to receipt diff step summaries and sticky pull request comments, including source, selection path, archive path, and promoted or archived time when present.
 
 ## 1.0.5 - 2026-04-13
 

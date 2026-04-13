@@ -187,6 +187,7 @@ Copyable workflow files live in [examples/](./examples).
 - `receipt` is the better default for CI because it is archive-friendly and read-only.
 - when `baseline-artifact-name` is enabled, the action restores the latest successful artifact from the same workflow on the default branch and prefers the archived receipt inside that artifact as the compare baseline.
 - receipt baseline mode is a two-step wrapper: the action captures the current receipt for archive continuity, then runs the compare output used for summaries, annotations, comments, and failure semantics.
+- receipt diff summaries and sticky pull request comments include baseline provenance when Ota provides it, including the source plus selection path, archive path, and promoted or archived time.
 - `doctor` is useful when you want the richer top-level `verdict` and `primary_blocker` semantics.
 - archived receipts are referenced by local path in the summary and uploaded as artifacts when available.
 - use `install: never` on self-hosted runners when Ota is already provisioned and you want the action to fail closed instead of mutating the runner

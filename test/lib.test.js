@@ -206,6 +206,9 @@ test("receipt diff gate passes with existing baseline debt and keeps risky statu
     },
     baseline: {
       source: "file",
+      selection_path: "/tmp/baseline-receipt.json",
+      archive_path: "/repo/.ota/receipts/repo-receipt-20260414-101010-123Z.json",
+      archived_at: "2026-04-14T10:10:10.123Z",
       ok: false,
       contract: "/repo/ota.yaml",
       summary: {
@@ -273,7 +276,89 @@ test("receipt diff gate passes with existing baseline debt and keeps risky statu
 
   assert.match(markdown, /Gate: \*\*PASSED\*\* `fail_on_new_blockers`/);
   assert.match(markdown, /Baseline source: `file`/);
+  assert.match(markdown, /Baseline selection: `\/tmp\/baseline-receipt.json`/);
+  assert.match(markdown, /Baseline archive: `\/repo\/\.ota\/receipts\/repo-receipt-20260414-101010-123Z\.json`/);
+  assert.match(markdown, /Baseline archived: `2026-04-14T10:10:10.123Z`/);
   assert.match(markdown, /Diff: introduced 0, resolved 0, unchanged 2/);
+});
+
+test("receipt diff summary shows promoted baseline provenance when ota provides it", () => {
+  const payload = parseOtaPayload(JSON.stringify({
+    ok: true,
+    path: "/repo/ota.yaml",
+    mode: "diff",
+    baseline: {
+      source: "promoted",
+      selection_path: "/repo/.ota/receipts/repo-baseline.json",
+      archive_path: "/repo/.ota/receipts/repo-receipt-20260414-111111-000Z.json",
+      promoted_at: "2026-04-14T11:22:33.456Z",
+      archived_at: "2026-04-14T11:11:11.000Z",
+      ok: true,
+      contract: "/repo/ota.yaml",
+      summary: {
+        error_count: 0,
+        warn_count: 0,
+        info_count: 0,
+        step_count: 1
+      }
+    },
+    current: {
+      ok: true,
+      contract: "/repo/ota.yaml",
+      summary: {
+        error_count: 0,
+        warn_count: 0,
+        info_count: 0,
+        step_count: 1
+      }
+    },
+    summary: {
+      baseline_ok: true,
+      current_ok: true,
+      introduced: {
+        count: 0,
+        error_count: 0,
+        warn_count: 0,
+        info_count: 0
+      },
+      resolved: {
+        count: 0,
+        error_count: 0,
+        warn_count: 0,
+        info_count: 0
+      },
+      unchanged: {
+        count: 0,
+        error_count: 0,
+        warn_count: 0,
+        info_count: 0
+      }
+    },
+    introduced: [],
+    resolved: [],
+    unchanged: []
+  }));
+
+  const kind = inferKind(payload);
+  const summary = normalizeSummary(payload, kind);
+
+  const markdown = buildSummaryMarkdown({
+    commandLine: "ota receipt --json --baseline promoted .",
+    payload,
+    kind,
+    status: "ready",
+    summary,
+    archivePath: "",
+    artifactName: "ota-readiness",
+    outputPath: "/tmp/ota-diff.json",
+    runUrl: null
+  });
+
+  assert.match(markdown, /Baseline source: `promoted`/);
+  assert.match(markdown, /Baseline selection: `\/repo\/\.ota\/receipts\/repo-baseline.json`/);
+  assert.match(markdown, /Baseline archive: `\/repo\/\.ota\/receipts\/repo-receipt-20260414-111111-000Z\.json`/);
+  assert.match(markdown, /Baseline promoted: `2026-04-14T11:22:33.456Z`/);
+  assert.match(markdown, /Baseline archived: `2026-04-14T11:11:11.000Z`/);
 });
 
 test("receipt diff gate blocks on introduced blockers and annotates introduced findings only", () => {
