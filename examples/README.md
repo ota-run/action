@@ -32,6 +32,7 @@ inputs from the reference docs.
 ## Files
 
 - [basic-readiness.yml](basic-readiness.yml) - minimal read-only readiness summary and artifact flow
+- [baseline-regression-gate.yml](baseline-regression-gate.yml) - compare against the latest successful baseline artifact on the default branch and fail only on new blockers
 - [pr-comment-and-annotations.yml](pr-comment-and-annotations.yml) - pull-request summary with annotations and sticky comment updates
 - [pinned-ota-version.yml](pinned-ota-version.yml) - same action flow with an explicit ota installer version
 - [self-hosted-preinstalled.yml](self-hosted-preinstalled.yml) - self-hosted runner flow that fails closed unless ota is already available

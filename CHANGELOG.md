@@ -24,6 +24,11 @@
 
 # Changelog
 
+## 1.0.5 - 2026-04-13
+
+- added receipt baseline compare support to `ota-run/action`, including `baseline`, `baseline-artifact-name`, and `fail-on-new-blockers` inputs plus gate-aware status and outputs for GitHub-native regression gating.
+- restored compare baselines from the latest successful artifact of the current workflow on the default branch so fresh GitHub runners can gate on persisted archived receipts instead of runner-local state.
+
 ## 1.0.4 - 2026-04-12
 
 - added copyable workflow examples under `examples/` for basic readiness, PR comments and annotations, pinned ota versions, and self-hosted preinstalled runners.

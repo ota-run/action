@@ -86,8 +86,16 @@ function buildOtaArgs(inputs) {
   const command = inputs.command;
   const args = [command, "--json"];
 
-  if (command === "receipt" && parseBoolean(inputs.archive, true)) {
+  if (command === "receipt" && parseBoolean(inputs.archive, true) && !inputs.baseline) {
     args.push("--archive");
+  }
+
+  if (command === "receipt" && inputs.baseline) {
+    args.push("--baseline", inputs.baseline);
+  }
+
+  if (command === "receipt" && parseBoolean(inputs.failOnNewBlockers, false) && inputs.baseline) {
+    args.push("--fail-on-new-blockers");
   }
 
   if (inputs.executionMode) {
@@ -137,9 +145,22 @@ function isValidateFailure(payload) {
   return payload.ok === false && (typeof payload.error === "string" || Array.isArray(payload.errors));
 }
 
+function isReceiptDiffPayload(payload) {
+  return payload?.mode === "diff"
+    && payload.baseline
+    && payload.current
+    && payload.summary
+    && Array.isArray(payload.introduced)
+    && Array.isArray(payload.resolved)
+    && Array.isArray(payload.unchanged);
+}
+
 function inferKind(payload) {
   if (isValidateFailure(payload)) {
     return "validate_failure";
+  }
+  if (isReceiptDiffPayload(payload)) {
+    return "receipt_diff";
   }
   if (payload.mode === "receipt" && payload.receipt) {
     return "receipt";
@@ -161,6 +182,66 @@ function normalizeSummary(payload, kind) {
         summary: payload.error || payload.errors?.[0] || "Contract load or validation failed",
         why: payload.error || payload.errors?.join("; ") || "Ota could not load the requested contract",
         next: "fix the contract and rerun Ota"
+      }
+    };
+  }
+
+  if (kind === "receipt_diff") {
+    const currentSummary = payload.current?.summary || {};
+    const introduced = payload.summary?.introduced || {};
+    const resolved = payload.summary?.resolved || {};
+    const unchanged = payload.summary?.unchanged || {};
+    const gate = payload.gate && typeof payload.gate === "object"
+      ? {
+        rule: payload.gate.rule || "",
+        passed: Boolean(payload.gate.passed),
+        newBlockerCount: Number(payload.gate.new_blocker_count ?? 0)
+      }
+      : null;
+
+    let verdict = "ready";
+    if (gate) {
+      if (!gate.passed) {
+        verdict = "not_ready";
+      } else if (
+        !payload.current?.ok
+        || (currentSummary.warn_count ?? 0) > 0
+        || (introduced.warn_count ?? 0) > 0
+      ) {
+        verdict = "risky";
+      }
+    } else if (!payload.current?.ok) {
+      verdict = "not_ready";
+    } else if ((currentSummary.warn_count ?? 0) > 0 || (introduced.warn_count ?? 0) > 0) {
+      verdict = "risky";
+    }
+
+    return {
+      errorCount: currentSummary.error_count ?? 0,
+      warnCount: currentSummary.warn_count ?? 0,
+      infoCount: currentSummary.info_count ?? 0,
+      verdict,
+      primaryBlocker: null,
+      currentOk: Boolean(payload.current?.ok),
+      baselineOk: Boolean(payload.baseline?.ok),
+      gate,
+      introduced: {
+        count: introduced.count ?? 0,
+        errorCount: introduced.error_count ?? 0,
+        warnCount: introduced.warn_count ?? 0,
+        infoCount: introduced.info_count ?? 0
+      },
+      resolved: {
+        count: resolved.count ?? 0,
+        errorCount: resolved.error_count ?? 0,
+        warnCount: resolved.warn_count ?? 0,
+        infoCount: resolved.info_count ?? 0
+      },
+      unchanged: {
+        count: unchanged.count ?? 0,
+        errorCount: unchanged.error_count ?? 0,
+        warnCount: unchanged.warn_count ?? 0,
+        infoCount: unchanged.info_count ?? 0
       }
     };
   }
@@ -192,6 +273,14 @@ function deriveStatus(kind, summary) {
 function topFinding(payload, kind) {
   if (kind === "validate_failure") {
     return normalizeSummary(payload, kind).primaryBlocker;
+  }
+
+  if (kind === "receipt_diff") {
+    const introduced = Array.isArray(payload.introduced) ? payload.introduced : [];
+    if (payload.gate?.passed === false) {
+      return introduced.find((finding) => finding?.severity === "error") || introduced[0] || null;
+    }
+    return introduced[0] || null;
   }
 
   if (payload.summary?.primary_blocker) {
@@ -293,6 +382,10 @@ function findingsForAnnotations(payload, kind) {
     }));
   }
 
+  if (kind === "receipt_diff") {
+    return Array.isArray(payload.introduced) ? payload.introduced : [];
+  }
+
   return Array.isArray(payload.findings) ? payload.findings : [];
 }
 
@@ -359,6 +452,14 @@ function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, arc
   if (artifactName) {
     lines.push(`Artifact: \`${artifactName}\`${runUrl ? ` in [this run](${runUrl})` : ""}`);
   }
+  if (kind === "receipt_diff") {
+    if (summary.gate) {
+      lines.push(`Gate: **${summary.gate.passed ? "PASSED" : "BLOCKED"}** \`${summary.gate.rule}\``);
+    }
+    lines.push(`Baseline source: \`${payload.baseline?.source || "unknown"}\``);
+    lines.push(`Current receipt: **${payload.current?.ok ? "READY" : "NOT READY"}**`);
+    lines.push(`Diff: introduced ${summary.introduced.count}, resolved ${summary.resolved.count}, unchanged ${summary.unchanged.count}`);
+  }
 
   const primary = topFinding(payload, kind);
   if (primary) {
@@ -382,6 +483,11 @@ function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, arc
   lines.push(`- Errors: ${summary.errorCount}`);
   lines.push(`- Warnings: ${summary.warnCount}`);
   lines.push(`- Info: ${summary.infoCount}`);
+  if (kind === "receipt_diff") {
+    lines.push(`- Introduced errors: ${summary.introduced.errorCount}`);
+    lines.push(`- Introduced warnings: ${summary.introduced.warnCount}`);
+    lines.push(`- Introduced info: ${summary.introduced.infoCount}`);
+  }
 
   return lines.join("\n");
 }

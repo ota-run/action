@@ -29,6 +29,7 @@ import {
   buildSummaryMarkdown,
   commonRootDirectory,
   deriveStatus,
+  findingsForAnnotations,
   inferKind,
   normalizeArchivePath,
   normalizeOtaBinInput,
@@ -52,6 +53,28 @@ test("buildOtaArgs defaults to archived receipt json", () => {
   });
 
   assert.deepEqual(args, ["receipt", "--json", "--archive", "--mode", "native", "."]);
+});
+
+test("buildOtaArgs forwards receipt baseline diff gate flags", () => {
+  const args = buildOtaArgs({
+    command: "receipt",
+    archive: "true",
+    baseline: "/tmp/baseline-receipt.json",
+    failOnNewBlockers: "true",
+    executionMode: "native",
+    path: "."
+  });
+
+  assert.deepEqual(args, [
+    "receipt",
+    "--json",
+    "--baseline",
+    "/tmp/baseline-receipt.json",
+    "--fail-on-new-blockers",
+    "--mode",
+    "native",
+    "."
+  ]);
 });
 
 test("buildOtaArgs builds doctor arguments without archive", () => {
@@ -169,6 +192,161 @@ test("doctor payload derives risky status and blocker summary", () => {
 
   assert.match(markdown, /Status: \*\*RISKY\*\*/);
   assert.match(markdown, /Review config/);
+});
+
+test("receipt diff gate passes with existing baseline debt and keeps risky status", () => {
+  const payload = parseOtaPayload(JSON.stringify({
+    ok: false,
+    path: "/repo/ota.yaml",
+    mode: "diff",
+    gate: {
+      rule: "fail_on_new_blockers",
+      passed: true,
+      new_blocker_count: 0
+    },
+    baseline: {
+      source: "file",
+      ok: false,
+      contract: "/repo/ota.yaml",
+      summary: {
+        error_count: 2,
+        warn_count: 0,
+        info_count: 0,
+        step_count: 1
+      }
+    },
+    current: {
+      ok: false,
+      contract: "/repo/ota.yaml",
+      summary: {
+        error_count: 2,
+        warn_count: 0,
+        info_count: 0,
+        step_count: 1
+      }
+    },
+    summary: {
+      baseline_ok: false,
+      current_ok: false,
+      introduced: {
+        count: 0,
+        error_count: 0,
+        warn_count: 0,
+        info_count: 0
+      },
+      resolved: {
+        count: 0,
+        error_count: 0,
+        warn_count: 0,
+        info_count: 0
+      },
+      unchanged: {
+        count: 2,
+        error_count: 2,
+        warn_count: 0,
+        info_count: 0
+      }
+    },
+    introduced: [],
+    resolved: [],
+    unchanged: []
+  }));
+
+  const kind = inferKind(payload);
+  const summary = normalizeSummary(payload, kind);
+
+  assert.equal(kind, "receipt_diff");
+  assert.equal(summary.gate.passed, true);
+  assert.equal(deriveStatus(kind, summary), "risky");
+
+  const markdown = buildSummaryMarkdown({
+    commandLine: "ota receipt --json --baseline /tmp/baseline-receipt.json --fail-on-new-blockers .",
+    payload,
+    kind,
+    status: "risky",
+    summary,
+    archivePath: "/tmp/current-receipt.json",
+    artifactName: "ota-readiness",
+    outputPath: "/tmp/ota-diff.json",
+    runUrl: null
+  });
+
+  assert.match(markdown, /Gate: \*\*PASSED\*\* `fail_on_new_blockers`/);
+  assert.match(markdown, /Baseline source: `file`/);
+  assert.match(markdown, /Diff: introduced 0, resolved 0, unchanged 2/);
+});
+
+test("receipt diff gate blocks on introduced blockers and annotates introduced findings only", () => {
+  const payload = parseOtaPayload(JSON.stringify({
+    ok: false,
+    path: "/repo/ota.yaml",
+    mode: "diff",
+    gate: {
+      rule: "fail_on_new_blockers",
+      passed: false,
+      new_blocker_count: 1
+    },
+    baseline: {
+      source: "latest",
+      ok: false,
+      contract: "/repo/ota.yaml",
+      summary: {
+        error_count: 1,
+        warn_count: 0,
+        info_count: 0,
+        step_count: 1
+      }
+    },
+    current: {
+      ok: false,
+      contract: "/repo/ota.yaml",
+      summary: {
+        error_count: 2,
+        warn_count: 0,
+        info_count: 0,
+        step_count: 1
+      }
+    },
+    summary: {
+      baseline_ok: false,
+      current_ok: false,
+      introduced: {
+        count: 1,
+        error_count: 1,
+        warn_count: 0,
+        info_count: 0
+      },
+      resolved: {
+        count: 0,
+        error_count: 0,
+        warn_count: 0,
+        info_count: 0
+      },
+      unchanged: {
+        count: 1,
+        error_count: 1,
+        warn_count: 0,
+        info_count: 0
+      }
+    },
+    introduced: [
+      {
+        severity: "error",
+        summary: "Missing environment variable: OTA_BASELINE_REQUIRED",
+        why: "the contract requires `OTA_BASELINE_REQUIRED`, but it was not set",
+        next: "set `OTA_BASELINE_REQUIRED` and rerun Ota"
+      }
+    ],
+    resolved: [],
+    unchanged: []
+  }));
+
+  const kind = inferKind(payload);
+  const summary = normalizeSummary(payload, kind);
+
+  assert.equal(deriveStatus(kind, summary), "blocked");
+  assert.equal(topFinding(payload, kind)?.summary, "Missing environment variable: OTA_BASELINE_REQUIRED");
+  assert.deepEqual(findingsForAnnotations(payload, kind), payload.introduced);
 });
 
 test("validate failure becomes blocked summary", () => {

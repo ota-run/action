@@ -33,6 +33,16 @@ inputs:
     description: Repo or contract target passed to Ota.
     required: false
     default: .
+  baseline:
+    description: Optional receipt baseline passed to `ota receipt --baseline`; supports `latest` or a receipt JSON file path.
+    required: false
+  baseline-artifact-name:
+    description: Restore the latest successful artifact with this name from the current workflow on the default branch and use its archived receipt as the compare baseline.
+    required: false
+  fail-on-new-blockers:
+    description: Add `--fail-on-new-blockers` for receipt baseline compares and fail only on newly introduced blocker findings.
+    required: false
+    default: "false"
   working-directory:
     description: Working directory used when invoking Ota.
     required: false
@@ -98,11 +108,13 @@ outputs:
   ok:
     description: Whether Ota reported an ok result.
   status:
-    description: "Derived action status: ready, risky, or blocked."
+    description: "Derived action status: ready, risky, or blocked; receipt diff gates can report risky when baseline debt remains but no new blockers were introduced."
   output-path:
     description: Path to the captured Ota JSON output.
   archive-path:
     description: Archived receipt path when receipt --archive produced one.
+  baseline-path:
+    description: Resolved receipt baseline path when a compare baseline was used.
   artifact-name:
     description: Uploaded artifact name.
   error-count:
@@ -111,6 +123,10 @@ outputs:
     description: Warning count from the Ota summary.
   info-count:
     description: Info count from the Ota summary.
+  gate-rule:
+    description: Diff gate rule when a receipt compare gate was active.
+  gate-passed:
+    description: Whether the diff gate passed when a receipt compare gate was active.
   primary-summary:
     description: Primary blocker or top finding summary.
 

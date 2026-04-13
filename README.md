@@ -55,6 +55,7 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 ## What v1 does
 
 - runs `ota doctor --json` or `ota receipt --json --archive`
+- can compare a current receipt against an explicit or restored baseline receipt
 - writes a GitHub Actions step summary
 - emits GitHub annotations from Ota findings
 - optionally posts or updates a pull request comment
@@ -63,6 +64,7 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 ## Requirements
 
 - the workflow should use `permissions: pull-requests: write` if `comment-pr` is enabled
+- the workflow should use `permissions: actions: read` if `baseline-artifact-name` is enabled
 - self-hosted runners should be on Actions Runner `v2.327.1` or later for Node 24-based actions
 - by default the action installs Ota automatically when it is not already available
 
@@ -70,6 +72,7 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 
 ```yaml
 permissions:
+  actions: read
   contents: read
   pull-requests: write
 
@@ -92,6 +95,7 @@ steps:
 Copyable workflow files live in [examples/](./examples).
 
 - [basic-readiness.yml](./examples/basic-readiness.yml)
+- [baseline-regression-gate.yml](./examples/baseline-regression-gate.yml)
 - [pr-comment-and-annotations.yml](./examples/pr-comment-and-annotations.yml)
 - [pinned-ota-version.yml](./examples/pinned-ota-version.yml)
 - [self-hosted-preinstalled.yml](./examples/self-hosted-preinstalled.yml)
@@ -104,6 +108,15 @@ Copyable workflow files live in [examples/](./examples).
 - `path`
   - repo or contract target passed to Ota
   - default: `.`
+- `baseline`
+  - optional baseline passed to `ota receipt --baseline`
+  - supports `latest` or a receipt JSON file path
+- `baseline-artifact-name`
+  - restores the latest successful artifact with this name from the current workflow on the repository default branch and uses its archived receipt as the compare baseline
+  - requires `actions: read` and a token through `github-token` or `GITHUB_TOKEN`
+- `fail-on-new-blockers`
+  - when `true`, adds `--fail-on-new-blockers` for receipt baseline compares
+  - default: `false`
 - `working-directory`
   - working directory used when invoking `ota`
   - default: `.`
@@ -133,8 +146,9 @@ Copyable workflow files live in [examples/](./examples).
 - `artifact-retention-days`
   - optional artifact retention in days
 - `fail-on-error`
-  - fail the action when Ota reports a blocked outcome
+  - fail the action when the derived action status is `blocked`
   - default: `true`
+  - baseline compare gates can report `risky` when baseline debt remains but no new blockers were introduced
 - `install`
   - `auto`, `always`, or `never`
   - default: `auto`
@@ -159,15 +173,20 @@ Copyable workflow files live in [examples/](./examples).
 - `status`
 - `output-path`
 - `archive-path`
+- `baseline-path`
 - `artifact-name`
 - `error-count`
 - `warn-count`
 - `info-count`
+- `gate-rule`
+- `gate-passed`
 - `primary-summary`
 
 ## Notes
 
 - `receipt` is the better default for CI because it is archive-friendly and read-only.
+- when `baseline-artifact-name` is enabled, the action restores the latest successful artifact from the same workflow on the default branch and prefers the archived receipt inside that artifact as the compare baseline.
+- receipt baseline mode is a two-step wrapper: the action captures the current receipt for archive continuity, then runs the compare output used for summaries, annotations, comments, and failure semantics.
 - `doctor` is useful when you want the richer top-level `verdict` and `primary_blocker` semantics.
 - archived receipts are referenced by local path in the summary and uploaded as artifacts when available.
 - use `install: never` on self-hosted runners when Ota is already provisioned and you want the action to fail closed instead of mutating the runner
