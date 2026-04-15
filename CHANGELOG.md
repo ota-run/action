@@ -26,6 +26,8 @@
 
 ## Unreleased
 
+- improved GitHub step summaries and sticky pull request comments so they now lead with the derived outcome, surface the primary blocker or change more clearly, include explicit next steps, and group receipt or baseline references into more operator-friendly sections.
+
 ## 1.0.6 - 2026-04-14
 
 - fixed `ota run version:bump` semver handling so prerelease identifiers with internal hyphens and explicit build metadata are preserved instead of being truncated.

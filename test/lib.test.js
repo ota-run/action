@@ -191,7 +191,11 @@ test("doctor payload derives risky status and blocker summary", () => {
   });
 
   assert.match(markdown, /Status: \*\*RISKY\*\*/);
+  assert.match(markdown, /Outcome: Ota reported warnings that still need review\./);
+  assert.match(markdown, /### References/);
   assert.match(markdown, /Review config/);
+  assert.match(markdown, /### Next steps/);
+  assert.match(markdown, /run ota detect --merge/);
 });
 
 test("receipt diff gate passes with existing baseline debt and keeps risky status", () => {
@@ -274,12 +278,16 @@ test("receipt diff gate passes with existing baseline debt and keeps risky statu
     runUrl: null
   });
 
-  assert.match(markdown, /Gate: \*\*PASSED\*\* `fail_on_new_blockers`/);
-  assert.match(markdown, /Baseline source: `file`/);
-  assert.match(markdown, /Baseline selection: `\/tmp\/baseline-receipt.json`/);
-  assert.match(markdown, /Baseline archive: `\/repo\/\.ota\/receipts\/repo-receipt-20260414-101010-123Z\.json`/);
-  assert.match(markdown, /Baseline archived: `2026-04-14T10:10:10.123Z`/);
-  assert.match(markdown, /Diff: introduced 0, resolved 0, unchanged 2/);
+  assert.match(markdown, /Outcome: No new blockers were introduced, but the current receipt is still not ready\./);
+  assert.match(markdown, /### Baseline/);
+  assert.match(markdown, /- Gate: \*\*PASSED\*\* `fail_on_new_blockers`/);
+  assert.match(markdown, /- Source: `file`/);
+  assert.match(markdown, /- Selection: `\/tmp\/baseline-receipt.json`/);
+  assert.match(markdown, /- Archive: `\/repo\/\.ota\/receipts\/repo-receipt-20260414-101010-123Z\.json`/);
+  assert.match(markdown, /- Archived: `2026-04-14T10:10:10.123Z`/);
+  assert.match(markdown, /- Diff: introduced 0, resolved 0, unchanged 2/);
+  assert.match(markdown, /### Next steps/);
+  assert.match(markdown, /Review the current receipt debt before treating this baseline as healthy\./);
 });
 
 test("receipt diff summary shows promoted baseline provenance when ota provides it", () => {
@@ -354,11 +362,12 @@ test("receipt diff summary shows promoted baseline provenance when ota provides 
     runUrl: null
   });
 
-  assert.match(markdown, /Baseline source: `promoted`/);
-  assert.match(markdown, /Baseline selection: `\/repo\/\.ota\/receipts\/repo-baseline.json`/);
-  assert.match(markdown, /Baseline archive: `\/repo\/\.ota\/receipts\/repo-receipt-20260414-111111-000Z\.json`/);
-  assert.match(markdown, /Baseline promoted: `2026-04-14T11:22:33.456Z`/);
-  assert.match(markdown, /Baseline archived: `2026-04-14T11:11:11.000Z`/);
+  assert.match(markdown, /Outcome: The current receipt is ready and no new blockers were introduced\./);
+  assert.match(markdown, /- Source: `promoted`/);
+  assert.match(markdown, /- Selection: `\/repo\/\.ota\/receipts\/repo-baseline.json`/);
+  assert.match(markdown, /- Archive: `\/repo\/\.ota\/receipts\/repo-receipt-20260414-111111-000Z\.json`/);
+  assert.match(markdown, /- Promoted: `2026-04-14T11:22:33.456Z`/);
+  assert.match(markdown, /- Archived: `2026-04-14T11:11:11.000Z`/);
 });
 
 test("receipt diff gate blocks on introduced blockers and annotates introduced findings only", () => {
@@ -460,9 +469,12 @@ test("validate failure becomes blocked summary", () => {
     runUrl: null
   });
 
-  assert.match(markdown, /### Primary/);
+  assert.match(markdown, /Outcome: Ota could not load or validate the requested contract\./);
+  assert.match(markdown, /### Primary blocker/);
   assert.match(markdown, /\*\*unknown field `foo`\*\*/);
   assert.match(markdown, /unknown field `foo`/);
+  assert.match(markdown, /### Next steps/);
+  assert.match(markdown, /fix the contract and rerun Ota/);
 });
 
 test("normalizeArchivePath resolves relative receipt paths against working directory", () => {

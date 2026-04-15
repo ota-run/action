@@ -60,6 +60,7 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 - emits GitHub annotations from Ota findings
 - optionally posts or updates a pull request comment
 - uploads the ota JSON output and any archived receipt file as workflow artifacts
+- formats summaries and sticky pull request comments around outcome, primary blocker or change, next steps, and receipt or baseline references
 
 ## Requirements
 
@@ -187,6 +188,7 @@ Copyable workflow files live in [examples/](./examples).
 - `receipt` is the better default for CI because it is archive-friendly and read-only.
 - when `baseline-artifact-name` is enabled, the action restores the latest successful artifact from the same workflow on the default branch and prefers the archived receipt inside that artifact as the compare baseline.
 - receipt baseline mode is a two-step wrapper: the action captures the current receipt for archive continuity, then runs the compare output used for summaries, annotations, comments, and failure semantics.
+- step summaries and sticky pull request comments lead with the derived outcome, then show the primary blocker or change, explicit next steps, and any receipt or baseline references available from Ota.
 - receipt diff summaries and sticky pull request comments include baseline provenance when Ota provides it, including the source plus selection path, archive path, and promoted or archived time.
 - `doctor` is useful when you want the richer top-level `verdict` and `primary_blocker` semantics.
 - archived receipts are referenced by local path in the summary and uploaded as artifacts when available.

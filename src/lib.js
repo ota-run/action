@@ -444,20 +444,79 @@ function pushBaselineProvenanceLines(lines, baseline) {
     return;
   }
 
-  lines.push(`Baseline source: \`${baseline.source || "unknown"}\``);
+  lines.push(`- Source: \`${baseline.source || "unknown"}\``);
 
   if (baseline.selection_path) {
-    lines.push(`Baseline selection: \`${baseline.selection_path}\``);
+    lines.push(`- Selection: \`${baseline.selection_path}\``);
   }
   if (baseline.archive_path) {
-    lines.push(`Baseline archive: \`${baseline.archive_path}\``);
+    lines.push(`- Archive: \`${baseline.archive_path}\``);
   }
   if (baseline.promoted_at) {
-    lines.push(`Baseline promoted: \`${baseline.promoted_at}\``);
+    lines.push(`- Promoted: \`${baseline.promoted_at}\``);
   }
   if (baseline.archived_at) {
-    lines.push(`Baseline archived: \`${baseline.archived_at}\``);
+    lines.push(`- Archived: \`${baseline.archived_at}\``);
   }
+}
+
+function outcomeText({ kind, status, summary }) {
+  if (kind === "validate_failure") {
+    return "Ota could not load or validate the requested contract.";
+  }
+
+  if (kind === "receipt_diff") {
+    if (summary.gate && !summary.gate.passed) {
+      return "New blocker findings were introduced against the baseline.";
+    }
+    if (!summary.currentOk) {
+      return "No new blockers were introduced, but the current receipt is still not ready.";
+    }
+    if (status === "risky") {
+      return "The receipt gate passed, but warnings still need review.";
+    }
+    return "The current receipt is ready and no new blockers were introduced.";
+  }
+
+  if (status === "blocked") {
+    return "Ota reported blocker findings.";
+  }
+  if (status === "risky") {
+    return "Ota reported warnings that still need review.";
+  }
+  return "Ota reported a ready result.";
+}
+
+function primaryHeading(kind, status, primary) {
+  if (!primary) {
+    return null;
+  }
+  if (kind === "receipt_diff" && status !== "blocked") {
+    return "### Primary change";
+  }
+  if (status === "blocked" || primary.severity === "error") {
+    return "### Primary blocker";
+  }
+  return "### Primary finding";
+}
+
+function nextSteps({ kind, status, summary, primary }) {
+  if (primary?.next) {
+    return [primary.next];
+  }
+  if (kind === "receipt_diff" && summary.gate && !summary.gate.passed) {
+    return ["Review the introduced blocker findings in the Ota output and address them before merging."];
+  }
+  if (kind === "receipt_diff" && !summary.currentOk) {
+    return ["Review the current receipt debt before treating this baseline as healthy."];
+  }
+  if (status === "risky") {
+    return ["Review the warnings in the Ota output before promoting this result."];
+  }
+  if (status === "blocked") {
+    return ["Review the blocker findings in the Ota output and rerun Ota."];
+  }
+  return [];
 }
 
 function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, archivePath, artifactName, outputPath, runUrl }) {
@@ -465,36 +524,49 @@ function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, arc
   lines.push("## Ota");
   lines.push("");
   lines.push(`Status: **${statusLabel(status)}**`);
-  lines.push(`Command: \`${commandLine}\``);
-  lines.push(`Output: \`${outputPath}\``);
+  lines.push(`Outcome: ${outcomeText({ kind, status, summary })}`);
+  lines.push("");
+  lines.push("### References");
+  lines.push("");
+  lines.push(`- Command: \`${commandLine}\``);
+  lines.push(`- Output JSON: \`${outputPath}\``);
   if (archivePath) {
-    lines.push(`Archive: \`${archivePath}\``);
+    lines.push(`- Current archive: \`${archivePath}\``);
   }
   if (artifactName) {
-    lines.push(`Artifact: \`${artifactName}\`${runUrl ? ` in [this run](${runUrl})` : ""}`);
+    lines.push(`- Artifact: \`${artifactName}\`${runUrl ? ` in [this run](${runUrl})` : ""}`);
   }
   if (kind === "receipt_diff") {
+    lines.push("");
+    lines.push("### Baseline");
+    lines.push("");
     if (summary.gate) {
-      lines.push(`Gate: **${summary.gate.passed ? "PASSED" : "BLOCKED"}** \`${summary.gate.rule}\``);
+      lines.push(`- Gate: **${summary.gate.passed ? "PASSED" : "BLOCKED"}** \`${summary.gate.rule}\``);
     }
+    lines.push(`- Current receipt: **${payload.current?.ok ? "READY" : "NOT READY"}**`);
+    lines.push(`- Diff: introduced ${summary.introduced.count}, resolved ${summary.resolved.count}, unchanged ${summary.unchanged.count}`);
     pushBaselineProvenanceLines(lines, payload.baseline);
-    lines.push(`Current receipt: **${payload.current?.ok ? "READY" : "NOT READY"}**`);
-    lines.push(`Diff: introduced ${summary.introduced.count}, resolved ${summary.resolved.count}, unchanged ${summary.unchanged.count}`);
   }
 
   const primary = topFinding(payload, kind);
   if (primary) {
     lines.push("");
-    lines.push("### Primary");
+    lines.push(primaryHeading(kind, status, primary));
     lines.push("");
     lines.push(`**${primary.summary}**`);
     if (primary.why) {
       lines.push("");
       lines.push(`Why: ${primary.why}`);
     }
-    if (primary.next) {
-      lines.push("");
-      lines.push(`Next: ${primary.next}`);
+  }
+
+  const actions = nextSteps({ kind, status, summary, primary });
+  if (actions.length > 0) {
+    lines.push("");
+    lines.push("### Next steps");
+    lines.push("");
+    for (const action of actions) {
+      lines.push(`- ${action}`);
     }
   }
 
