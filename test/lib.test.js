@@ -123,6 +123,15 @@ test("otaInstallDirectories follows official install locations", () => {
     ]
   );
 
+  assert.deepEqual(
+      otaInstallDirectories({LOCALAPPDATA: "C:\\Users\\ota\\AppData\\Local", USERPROFILE: "C:\\Users\\ota"}, "win32"),
+      [
+        "C:\\Users\\ota\\AppData\\Local\\ota\\bin",
+        "C:\\Users\\ota\\.local\\bin",
+        "C:\\Users\\ota\\.cargo\\bin"
+      ]
+  );
+
   assert.equal(otaBinaryName("win32"), "ota.exe");
   assert.equal(otaBinaryName("linux"), "ota");
 });

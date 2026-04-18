@@ -143,9 +143,12 @@ async function installOta(version, cwd) {
   }
 
   if (process.platform === "win32") {
+    const escapedBinDir = env.OTA_BIN_DIR.replace(/'/g, "''");
+    const escapedVersion = (version || "").replace(/'/g, "''");
+    const command = `$env:OTA_BIN_DIR='${escapedBinDir}'; $env:OTA_VERSION='${escapedVersion}'; irm https://dist.ota.run/install.ps1 | iex`;
     return await runCommand(
       "pwsh",
-      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "irm https://dist.ota.run/install.ps1 | iex"],
+        ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
       cwd,
       env
     );
@@ -207,8 +210,12 @@ async function ensureOtaBinary(inputs, cwd) {
     }
   }
 
-  for (const directory of otaInstallDirectories()) {
+  const installDirectories = otaInstallDirectories();
+  core.debug(`Searching for ota binary in: ${installDirectories.join(", ")}`);
+
+  for (const directory of installDirectories) {
     const candidate = path.join(directory, binaryName);
+    core.debug(`Checking candidate: ${candidate}`);
     try {
       await fs.access(candidate, fsSync.constants.F_OK);
       core.addPath(directory);

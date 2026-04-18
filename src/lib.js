@@ -68,9 +68,10 @@ function otaInstallDirectories(env = process.env, platform = process.platform) {
   if (platform === "win32" && env.LOCALAPPDATA) {
     directories.push(pathApi.join(env.LOCALAPPDATA, "ota", "bin"));
   }
-  if (env.HOME) {
-    directories.push(pathApi.join(env.HOME, ".local", "bin"));
-    directories.push(pathApi.join(env.HOME, ".cargo", "bin"));
+  const home = env.HOME || (platform === "win32" ? env.USERPROFILE : "");
+  if (home) {
+    directories.push(pathApi.join(home, ".local", "bin"));
+    directories.push(pathApi.join(home, ".cargo", "bin"));
   }
   return [...new Set(directories)];
 }
