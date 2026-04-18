@@ -23,19 +23,19 @@
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import {spawn} from "node:child_process";
 
 import * as core from "@actions/core";
-import { DefaultArtifactClient } from "@actions/artifact";
+import {DefaultArtifactClient} from "@actions/artifact";
 import * as github from "@actions/github";
 
 import {
-  COMMENT_MARKER,
   annotationMethod,
   artifactFiles,
   buildCommentBody,
   buildOtaArgs,
   buildSummaryMarkdown,
+  COMMENT_MARKER,
   commonRootDirectory,
   deriveStatus,
   findingsForAnnotations,
@@ -132,6 +132,12 @@ async function resolveExistingBinary(bin, env = process.env, platform = process.
 
 async function installOta(version, cwd) {
   const env = { ...process.env };
+  if (!env.OTA_BIN_DIR) {
+    const installerBinDir = path.resolve(cwd, ".ota", "bin");
+    env.OTA_BIN_DIR = installerBinDir;
+    process.env.OTA_BIN_DIR = installerBinDir;
+    core.info(`Using OTA installer directory ${installerBinDir}`);
+  }
   if (version) {
     env.OTA_VERSION = version;
   }
