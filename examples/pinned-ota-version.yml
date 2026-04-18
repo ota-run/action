@@ -42,5 +42,5 @@ jobs:
           path: .
           archive: true
           annotate: true
-          ota-version: v1.4.3
+          ota-version: v1.5.0
           artifact-name: ota-readiness
