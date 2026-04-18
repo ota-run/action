@@ -46,7 +46,8 @@ When a new semver tag is pushed, the release workflow verifies the repo through 
 
 Release prep is Ota-native:
 
-1. `ota run version:bump . --version patch`
+1. `ota run version:bump --version patch`
+   Put Ota command flags before task inputs, for example `ota run version:bump --stream --version patch`.
 2. commit and push `main`
 3. create and push a semver tag such as `v1.0.2`
 
@@ -201,7 +202,7 @@ This repository is also managed through Ota.
 - `ota validate` checks the repo contract.
 - `ota run setup` installs local dependencies.
 - `ota run ci` runs the canonical verification path for this repo.
-- `ota run version:bump . --version patch` prepares the next release version without creating a tag.
+- `ota run version:bump --version patch` prepares the next release version without creating a tag.
 
 ## License
 

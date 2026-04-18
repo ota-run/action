@@ -24,6 +24,10 @@
 
 # Changelog
 
+## Unreleased
+
+- aligned release docs and contract guidance with the current `ota run version:bump --version ...` form, including the rule that Ota command flags such as `--stream` should appear before task inputs.
+
 ## 1.0.7 - 2026-04-18
 
 - improved GitHub step summaries and sticky pull request comments so they now lead with the derived outcome, surface the primary blocker or change more clearly, include explicit next steps, and group receipt or baseline references into more operator-friendly sections.

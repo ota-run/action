@@ -78,7 +78,7 @@ Use `ota run test` to verify the test suite.
 Use `ota run build` to refresh the bundled action output.
 Use `ota run verify:dist` to confirm `dist/` is committed and current.
 Use `ota run ci` as the canonical verification path before release.
-Use `ota run version:bump . --version patch` to prepare the next release version.
-Use `ota run version:bump . --version minor` or `--version major` when you need a larger bump.
+Use `ota run version:bump --version patch` to prepare the next release version.
+Use `ota run version:bump --version minor` or `--version major` when you need a larger bump.
 You do not need to know the current version first.
 The task also accepts `prerelease` or an explicit semver value.

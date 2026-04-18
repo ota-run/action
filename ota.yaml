@@ -77,9 +77,10 @@ tasks:
     description: Bump the action version before release
     notes: |
       Use this when preparing a release. It updates package.json and package-lock.json and prints the next version.
-      From the repo root, use `ota run version:bump . --version minor` or `--version major` when you want a larger bump.
+      Use `ota run version:bump --version minor` or `--version major` when you want a larger bump.
       You do not need to know the current version first.
       The task also accepts `patch`, `prerelease`, or an explicit semver value.
+      When you combine Ota command flags with task inputs, put the Ota flags first, for example `ota run version:bump --stream --version patch`.
     inputs:
       version:
         description: Version bump selector or explicit semver value
@@ -133,7 +134,7 @@ agent:
     Use `ota run build` to refresh the bundled action output.
     Use `ota run verify:dist` to confirm `dist/` is committed and current.
     Use `ota run ci` as the canonical verification path before release.
-    Use `ota run version:bump . --version patch` to prepare the next release version.
-    Use `ota run version:bump . --version minor` or `--version major` when you need a larger bump.
+    Use `ota run version:bump --version patch` to prepare the next release version.
+    Use `ota run version:bump --version minor` or `--version major` when you need a larger bump.
     You do not need to know the current version first.
     The task also accepts `prerelease` or an explicit semver value.
