@@ -68,7 +68,10 @@ tasks:
       It runs tests, rebuilds `dist/`, and fails if the committed bundle is stale.
     depends_on:
       - setup
-    run: npm test && npm run build && git diff --exit-code dist
+      - test
+      - build
+      - verify:dist
+    run: echo "🎉CI verification successful"
     safe_for_agent: true
   version:bump:
     description: Bump the action version before release
@@ -84,6 +87,8 @@ tasks:
     depends_on:
       - ci
     run: node lib/bump-version.mjs
+    after_success:
+      - build
 execution:
   preferred: native
 agent:

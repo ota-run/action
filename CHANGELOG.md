@@ -24,7 +24,7 @@
 
 # Changelog
 
-## Unreleased
+## 1.0.7 - 2026-04-18
 
 - improved GitHub step summaries and sticky pull request comments so they now lead with the derived outcome, surface the primary blocker or change more clearly, include explicit next steps, and group receipt or baseline references into more operator-friendly sections.
 
