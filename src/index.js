@@ -717,9 +717,8 @@ async function main() {
 
   const shouldComment = parseBoolean(inputs.commentPr, false);
   const commentPrOnly = parseBoolean(inputs.commentPrOnly, true);
-  const isPullRequest = Boolean(github.context.payload.pull_request);
 
-  if (shouldComment && (!commentPrOnly || isPullRequest)) {
+  if (shouldComment) {
     if (!token) {
       core.warning("comment-pr is enabled but no github-token was provided; skipping pull request comment");
     } else {
