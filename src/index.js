@@ -148,7 +148,7 @@ async function installOta(version, cwd) {
     const command = `$env:OTA_BIN_DIR='${escapedBinDir}'; $env:OTA_VERSION='${escapedVersion}'; irm https://dist.ota.run/install.ps1 | iex`;
     return await runCommand(
       "pwsh",
-        ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
       cwd,
       env
     );
