@@ -39,11 +39,10 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Install ota
-        shell: bash
-        run: |
-          curl -fsSL https://dist.ota.run/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Setup ota
+        uses: ota-run/setup@v1
+        with:
+          ota-version: 1.6.1
 
       - name: Validate contract
         run: ota validate

@@ -50,11 +50,10 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Install ota
-        shell: bash
-        run: |
-          curl -fsSL https://dist.ota.run/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Setup ota
+        uses: ota-run/setup@v1
+        with:
+          ota-version: 1.6.1
 
       - name: Verify release candidate
         run: ota run ci --stream

@@ -46,7 +46,5 @@ jobs:
           command: receipt
           path: .
           archive: true
-          annotate: true
-          comment-pr: true
           artifact-name: ota-readiness
           github-token: ${{ github.token }}

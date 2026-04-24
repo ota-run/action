@@ -32,10 +32,10 @@ inputs from the reference docs.
 ## Files
 
 - [recommended-pr-gate.yml](recommended-pr-gate.yml) - opinionated pull-request gate with archived receipts, automatic baseline restore, annotations, and sticky PR comments
-- [basic-readiness.yml](basic-readiness.yml) - minimal read-only readiness summary and artifact flow
+- [basic-readiness.yml](basic-readiness.yml) - minimal push-only readiness summary and artifact flow
 - [baseline-regression-gate.yml](baseline-regression-gate.yml) - compare against the latest successful baseline artifact on the default branch and fail only on new blockers
 - [pr-comment-and-annotations.yml](pr-comment-and-annotations.yml) - pull-request summary with annotations and sticky comment updates
-- [pinned-ota-version.yml](pinned-ota-version.yml) - same action flow with an explicit ota installer version
+- [pinned-ota-version.yml](pinned-ota-version.yml) - same push-only action flow with an explicit ota installer version
 - [self-hosted-preinstalled.yml](self-hosted-preinstalled.yml) - self-hosted runner flow that fails closed unless ota is already available
 
 ## Rule

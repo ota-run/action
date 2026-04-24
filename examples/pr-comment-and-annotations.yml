@@ -26,6 +26,7 @@ on:
   pull_request:
 
 permissions:
+  actions: read
   contents: read
   pull-requests: write
 
@@ -41,9 +42,6 @@ jobs:
           command: receipt
           path: .
           archive: true
-          annotate: true
-          comment-pr: true
-          comment-pr-only: true
           max-annotations: 20
           artifact-name: ota-readiness
           github-token: ${{ github.token }}

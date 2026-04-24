@@ -27,7 +27,9 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
+  pull-requests: write
 
 jobs:
   readiness:
@@ -41,7 +43,7 @@ jobs:
           command: receipt
           path: .
           archive: true
-          annotate: true
           install: never
           ota-bin: ota
           artifact-name: ota-readiness
+          github-token: ${{ github.token }}

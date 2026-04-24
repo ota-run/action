@@ -100,7 +100,9 @@ This is the intended drop-in path:
 
 Use [examples/recommended-pr-gate.yml](./examples/recommended-pr-gate.yml) when you want the copyable workflow file directly.
 
-## Minimal Usage
+## Minimal Push-Only Usage
+
+Use this smaller shape only when the workflow does not run on `pull_request` events. The pull-request gate needs `github-token`, `actions: read`, and `pull-requests: write`.
 
 ```yaml
 permissions:

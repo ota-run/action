@@ -24,7 +24,9 @@ name: ota-pinned-version
 
 on:
   workflow_dispatch:
-  pull_request:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -39,8 +41,4 @@ jobs:
         uses: ota-run/action@v1
         with:
           command: receipt
-          path: .
-          archive: true
-          annotate: true
           ota-version: v1.5.0
-          artifact-name: ota-readiness
