@@ -29,6 +29,7 @@
 - aligned release docs and contract guidance with the current `ota run version:bump --version ...` form, including the rule that Ota command flags such as `--stream` should appear before task inputs.
 - made pull request `receipt` runs automatically try to restore the latest successful artifact named by `artifact-name` when no explicit baseline source is configured, so the default PR gate path needs less setup.
 - added a recommended PR gate workflow example and updated the action docs to make archived receipts, automatic baseline restore, annotations, and sticky PR comments the clearest adoption path.
+- removed the compatibility-era `baseline-artifact-name` input, made the PR gate defaults opinionated (`artifact-name: ota-readiness`, `comment-pr: true`, `fail-on-new-blockers: true`), and changed installer mode to `always`/`never` with `always` as the default.
 
 ## 1.0.7 - 2026-04-18
 

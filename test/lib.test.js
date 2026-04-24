@@ -41,7 +41,6 @@ import {
   parseInstallMode,
   parseOtaPayload,
   selectPullRequestNumberForComment,
-  shouldRetryReceiptWithoutArchive,
   topFinding
 } from "../src/lib.js";
 
@@ -123,9 +122,10 @@ test("buildOtaArgs rejects unsupported command", () => {
   );
 });
 
-test("parseInstallMode defaults to auto and rejects unsupported values", () => {
-  assert.equal(parseInstallMode(""), "auto");
+test("parseInstallMode defaults to always and rejects unsupported values", () => {
+  assert.equal(parseInstallMode(""), "always");
   assert.equal(parseInstallMode("always"), "always");
+  assert.equal(parseInstallMode("never"), "never");
   assert.throws(() => parseInstallMode("sometimes"), /unsupported install mode/);
 });
 
@@ -610,40 +610,5 @@ test("selectPullRequestNumberForComment uses an associated open pull request whe
       ]
     }),
     9
-  );
-});
-
-test("shouldRetryReceiptWithoutArchive only retries the known ota receipt archive incompatibility", () => {
-  assert.equal(
-    shouldRetryReceiptWithoutArchive(
-      { command: "receipt", archive: "true" },
-      {
-        exitCode: 2,
-        stderr: "error: unexpected argument '--archive' found\n\nUsage: ota receipt --json [PATH]\n"
-      }
-    ),
-    true
-  );
-
-  assert.equal(
-    shouldRetryReceiptWithoutArchive(
-      { command: "receipt", archive: "false" },
-      {
-        exitCode: 2,
-        stderr: "error: unexpected argument '--archive' found\n\nUsage: ota receipt --json [PATH]\n"
-      }
-    ),
-    false
-  );
-
-  assert.equal(
-    shouldRetryReceiptWithoutArchive(
-      { command: "doctor", archive: "true" },
-      {
-        exitCode: 2,
-        stderr: "error: unexpected argument '--archive' found\n\nUsage: ota receipt --json [PATH]\n"
-      }
-    ),
-    false
   );
 });

@@ -36,13 +36,10 @@ inputs:
   baseline:
     description: Optional receipt baseline passed to `ota receipt --baseline`; supports `latest` or a receipt JSON file path.
     required: false
-  baseline-artifact-name:
-    description: Restore the latest successful artifact with this name from the current workflow on the default branch and use its archived receipt as the compare baseline. When omitted on pull request receipt runs, the action automatically tries `artifact-name`.
-    required: false
   fail-on-new-blockers:
     description: Add `--fail-on-new-blockers` for receipt baseline compares and fail only on newly introduced blocker findings.
     required: false
-    default: "false"
+    default: "true"
   working-directory:
     description: Working directory used when invoking Ota.
     required: false
@@ -69,7 +66,7 @@ inputs:
   comment-pr:
     description: Create or update a sticky pull request comment.
     required: false
-    default: "false"
+    default: "true"
   comment-pr-only:
     description: Only comment when the workflow event is a pull request.
     required: false
@@ -77,7 +74,7 @@ inputs:
   artifact-name:
     description: Uploaded artifact name.
     required: false
-    default: ota-report
+    default: ota-readiness
   artifact-retention-days:
     description: Optional artifact retention in days.
     required: false
@@ -86,9 +83,9 @@ inputs:
     required: false
     default: "true"
   install:
-    description: "Ota installation mode. Supported values: auto, always, never."
+    description: "Ota installation mode. Supported values: always, never."
     required: false
-    default: auto
+    default: always
   ota-version:
     description: Optional Ota version to install when the action performs installation.
     required: false
@@ -101,7 +98,7 @@ inputs:
     required: false
     default: .ota-action-output.json
   github-token:
-    description: Token used to create or update pull request comments.
+    description: Token used to restore pull request receipt baselines and create or update sticky pull request comments.
     required: false
 
 outputs:

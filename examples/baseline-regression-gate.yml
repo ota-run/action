@@ -45,8 +45,7 @@ jobs:
         with:
           command: receipt
           archive: true
-          baseline-artifact-name: ota-readiness
           fail-on-new-blockers: true
           annotate: true
-          comment-pr: true
+          artifact-name: ota-readiness
           github-token: ${{ github.token }}

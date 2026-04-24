@@ -56,20 +56,19 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 ## What v1 does
 
 - runs `ota doctor --json` or `ota receipt --json --archive`
-- can compare a current receipt against an explicit or restored baseline receipt
-- automatically tries to restore the latest successful artifact matching `artifact-name` on pull request receipt runs when no explicit baseline source is configured
+- can compare a current receipt against an explicit or auto-restored baseline receipt
+- automatically restores the latest successful artifact matching `artifact-name` on pull request receipt runs when no explicit baseline file is configured
 - writes a GitHub Actions step summary
 - emits GitHub annotations from Ota findings
-- optionally posts or updates a pull request comment
+- posts or updates a sticky pull request comment by default
 - uploads the ota JSON output and any archived receipt file as workflow artifacts
 - formats summaries and sticky pull request comments around outcome, primary blocker or change, next steps, and receipt or baseline references
 
 ## Requirements
 
-- the workflow should use `permissions: pull-requests: write` if `comment-pr` is enabled
-- the workflow should use `permissions: actions: read` if `baseline-artifact-name` is enabled
+- the workflow should use `permissions: actions: read` and `permissions: pull-requests: write` for the canonical pull-request gate
 - self-hosted runners should be on Actions Runner `v2.327.1` or later for Node 24-based actions
-- by default the action installs Ota automatically when it is not already available
+- by default the action installs Ota through the official installer on every run
 
 ## Recommended PR Gate
 
@@ -88,16 +87,15 @@ steps:
       command: receipt
       path: .
       archive: true
-      annotate: true
-      comment-pr: true
-      artifact-name: ota-readiness
+      fail-on-new-blockers: true
       github-token: ${{ github.token }}
 ```
 
 This is the intended drop-in path:
 
-- the action archives the current receipt
-- pull request runs automatically try to restore the latest successful `ota-readiness` artifact from the same workflow on the default branch
+- the action archives the current receipt under `ota-readiness`
+- pull request runs automatically restore the latest successful `ota-readiness` artifact from the same workflow on the default branch
+- the receipt diff gate blocks only on newly introduced blockers by default
 - the step summary and sticky pull request comment describe the current outcome, the primary blocker or change, and the next operator step
 
 Use [examples/recommended-pr-gate.yml](./examples/recommended-pr-gate.yml) when you want the copyable workflow file directly.
@@ -136,13 +134,9 @@ Copyable workflow files live in [examples/](./examples).
 - `baseline`
   - optional baseline passed to `ota receipt --baseline`
   - supports `latest` or a receipt JSON file path
-- `baseline-artifact-name`
-  - restores the latest successful artifact with this name from the current workflow on the repository default branch and uses its archived receipt as the compare baseline
-  - when omitted on pull request `receipt` runs, the action automatically tries `artifact-name`
-  - requires `actions: read` and a token through `github-token` or `GITHUB_TOKEN`
 - `fail-on-new-blockers`
   - when `true`, adds `--fail-on-new-blockers` for receipt baseline compares
-  - default: `false`
+  - default: `true`
 - `working-directory`
   - working directory used when invoking `ota`
   - default: `.`
@@ -162,13 +156,13 @@ Copyable workflow files live in [examples/](./examples).
   - default: `20`
 - `comment-pr`
   - create or update a sticky pull request comment
-  - default: `false`
+  - default: `true`
 - `comment-pr-only`
   - only comment when the workflow event is a pull request
   - default: `true`
 - `artifact-name`
   - uploaded artifact name
-  - default: `ota-report`
+  - default: `ota-readiness`
 - `artifact-retention-days`
   - optional artifact retention in days
 - `fail-on-error`
@@ -176,9 +170,8 @@ Copyable workflow files live in [examples/](./examples).
   - default: `true`
   - baseline compare gates can report `risky` when baseline debt remains but no new blockers were introduced
 - `install`
-  - `auto`, `always`, or `never`
-  - default: `auto`
-  - `auto` reuses an existing `ota` binary when present and otherwise installs Ota automatically
+  - `always` or `never`
+  - default: `always`
   - `always` installs Ota before running
   - `never` requires Ota to already be available
 - `ota-version`
@@ -191,7 +184,7 @@ Copyable workflow files live in [examples/](./examples).
   - where the captured Ota JSON output is written
   - default: `.ota-action-output.json`
 - `github-token`
-  - optional token used for pull request comment updates
+  - token used for pull request baseline restore and sticky pull request comment updates
 
 ## Outputs
 
@@ -211,9 +204,9 @@ Copyable workflow files live in [examples/](./examples).
 ## Notes
 
 - `receipt` is the better default for CI because it is archive-friendly and read-only.
-- on pull request receipt runs, the action automatically tries to restore the latest successful artifact named by `artifact-name` when no explicit baseline source is set.
-- when `baseline-artifact-name` is enabled, the action restores the latest successful artifact from the same workflow on the default branch and prefers the archived receipt inside that artifact as the compare baseline.
+- on pull request receipt runs, the action automatically restores the latest successful artifact named by `artifact-name` when no explicit baseline file is set.
 - receipt baseline mode is a two-step wrapper: the action captures the current receipt for archive continuity, then runs the compare output used for summaries, annotations, comments, and failure semantics.
+- the canonical pull-request gate expects `github-token`, `actions: read`, and `pull-requests: write`; missing them is now a configuration error, not a soft fallback.
 - step summaries and sticky pull request comments lead with the derived outcome, then show the primary blocker or change, explicit next steps, and any receipt or baseline references available from Ota.
 - receipt diff summaries and sticky pull request comments include baseline provenance when Ota provides it, including the source plus selection path, archive path, and promoted or archived time.
 - `doctor` is useful when you want the richer top-level `verdict` and `primary_blocker` semantics.

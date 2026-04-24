@@ -53,7 +53,6 @@ import {
   parsePositiveInteger,
   runUrlFromEnv,
   selectPullRequestNumberForComment,
-  shouldRetryReceiptWithoutArchive,
   topFinding
 } from "./lib.js";
 
@@ -168,12 +167,11 @@ async function ensureOtaBinary(inputs, cwd) {
   const requestedVersion = normalizeOtaVersion(inputs.otaVersion);
   const preferred = normalizeOtaBinInput(inputs.otaBin, cwd);
   const binaryName = otaBinaryName();
-  const effectiveInstallMode = requestedVersion && installMode === "auto" ? "always" : installMode;
   const preferredExisting = await resolveExistingBinary(preferred);
 
   if (installMode === "never") {
     if (requestedVersion) {
-      throw new Error("ota-version requires install=auto or install=always; install=never cannot honor a requested installer version");
+      throw new Error("ota-version requires install=always; install=never cannot honor a requested installer version");
     }
     if (preferredExisting) {
       return preferredExisting;
@@ -183,13 +181,8 @@ async function ensureOtaBinary(inputs, cwd) {
     );
   }
 
-  if (effectiveInstallMode === "auto" && preferredExisting) {
-    core.info(`Using existing ota binary at ${preferredExisting}`);
-    return preferredExisting;
-  }
-
   core.info(
-    `Installing ota ${requestedVersion || "latest"} via the official installer (${effectiveInstallMode} mode)`
+    `Installing ota ${requestedVersion || "latest"} via the official installer (${installMode} mode)`
   );
 
   const installResult = await installOta(requestedVersion, cwd);
@@ -254,18 +247,6 @@ function normalizeBaselineInput(value, cwd) {
     return baseline;
   }
   return path.resolve(cwd, baseline);
-}
-
-function shouldFallbackFromUnsupportedReceiptDiff(result) {
-  if ((result?.exitCode ?? 0) === 0) {
-    return false;
-  }
-  const stderr = String(result?.stderr || "");
-  return stderr.includes("Usage: ota receipt")
-    && (
-      stderr.includes("unexpected argument '--baseline'")
-      || stderr.includes("unexpected argument '--fail-on-new-blockers'")
-    );
 }
 
 function workflowFileFromEnv(env = process.env) {
@@ -368,7 +349,7 @@ async function selectReceiptBaselineFile(root) {
 async function restoreBaselineArtifact(artifactName, token, cwd) {
   const workflowFile = workflowFileFromEnv();
   if (!workflowFile) {
-    core.warning("baseline-artifact-name was set but the current workflow file could not be resolved from GITHUB_WORKFLOW_REF");
+    core.warning("artifact-name baseline restore could not resolve the current workflow file from GITHUB_WORKFLOW_REF");
     return "";
   }
 
@@ -414,23 +395,13 @@ async function restoreBaselineArtifact(artifactName, token, cwd) {
 }
 
 async function runOtaInvocation(otaBinary, inputs, cwd) {
-  let effectiveInputs = { ...inputs };
-  let args = buildOtaArgs(effectiveInputs);
-  let commandLine = `${otaBinary} ${args.join(" ")}`;
+  const effectiveInputs = { ...inputs };
+  const args = buildOtaArgs(effectiveInputs);
+  const commandLine = `${otaBinary} ${args.join(" ")}`;
 
   core.info(`Running ${commandLine} in ${cwd}`);
 
-  let result = await runCommand(otaBinary, args, cwd);
-  if (shouldRetryReceiptWithoutArchive(effectiveInputs, result)) {
-    core.notice(
-      "Installed ota does not support `ota receipt --archive`; retrying without archived receipt output"
-    );
-    effectiveInputs = { ...effectiveInputs, archive: "false" };
-    args = buildOtaArgs(effectiveInputs);
-    commandLine = `${otaBinary} ${args.join(" ")}`;
-    core.info(`Retrying ${commandLine} in ${cwd}`);
-    result = await runCommand(otaBinary, args, cwd);
-  }
+  const result = await runCommand(otaBinary, args, cwd);
 
   if (result.stderr.trim()) {
     core.info(result.stderr.trim());
@@ -509,7 +480,6 @@ async function main() {
     command: core.getInput("command") || "receipt",
     path: core.getInput("path") || ".",
     baseline: core.getInput("baseline"),
-    baselineArtifactName: core.getInput("baseline-artifact-name"),
     failOnNewBlockers: core.getInput("fail-on-new-blockers"),
     workingDirectory: core.getInput("working-directory") || ".",
     executionMode: core.getInput("execution-mode") || "native",
@@ -519,21 +489,18 @@ async function main() {
     maxAnnotations: core.getInput("max-annotations"),
     commentPr: core.getInput("comment-pr"),
     commentPrOnly: core.getInput("comment-pr-only"),
-    artifactName: core.getInput("artifact-name") || "ota-report",
+    artifactName: core.getInput("artifact-name") || "ota-readiness",
     artifactRetentionDays: core.getInput("artifact-retention-days"),
     failOnError: core.getInput("fail-on-error"),
-    install: core.getInput("install") || "auto",
+    install: core.getInput("install") || "always",
     otaVersion: core.getInput("ota-version"),
     otaBin: core.getInput("ota-bin") || "ota",
     outputPath: core.getInput("output-path") || ".ota-action-output.json",
     githubToken: core.getInput("github-token")
   };
 
-  if (inputs.command !== "receipt" && (inputs.baseline || inputs.baselineArtifactName || parseBoolean(inputs.failOnNewBlockers, false))) {
-    throw new Error("baseline, baseline-artifact-name, and fail-on-new-blockers are only supported when command=receipt");
-  }
-  if (inputs.baseline && inputs.baselineArtifactName) {
-    throw new Error("baseline and baseline-artifact-name are mutually exclusive; use one baseline source");
+  if (inputs.command !== "receipt" && inputs.baseline) {
+    throw new Error("baseline is only supported when command=receipt");
   }
 
   const cwd = path.resolve(inputs.workingDirectory);
@@ -541,11 +508,10 @@ async function main() {
   const otaBinary = await ensureOtaBinary(inputs, cwd);
   const token = inputs.githubToken || process.env.GITHUB_TOKEN;
   let baselinePath = normalizeBaselineInput(inputs.baseline, cwd);
-  const explicitBaselineArtifactRequested = Boolean(inputs.baselineArtifactName);
-  const effectiveBaselineArtifactName = inputs.baselineArtifactName || defaultBaselineArtifactName({
+  const effectiveBaselineArtifactName = defaultBaselineArtifactName({
     command: inputs.command,
     baseline: baselinePath,
-    baselineArtifactName: inputs.baselineArtifactName,
+    baselineArtifactName: "",
     artifactName: inputs.artifactName,
     eventName: github.context.eventName
   });
@@ -556,20 +522,16 @@ async function main() {
   };
   if (!baselinePath && effectiveBaselineArtifactName) {
     if (!token) {
-      if (explicitBaselineArtifactRequested) {
-        throw new Error("baseline-artifact-name requires github-token or GITHUB_TOKEN with actions:read permission");
-      }
-      core.notice(
-        `No GitHub token was available to restore baseline artifact \`${effectiveBaselineArtifactName}\`; using the current receipt only`
+      throw new Error(
+        "pull request receipt runs require github-token or GITHUB_TOKEN with actions:read permission so the action can restore the latest readiness baseline"
       );
-    } else {
-      baselinePath = await restoreBaselineArtifact(effectiveBaselineArtifactName, token, cwd);
-      baselineInfo = {
-        artifactName: effectiveBaselineArtifactName,
-        restored: Boolean(baselinePath),
-        path: baselinePath
-      };
     }
+    baselinePath = await restoreBaselineArtifact(effectiveBaselineArtifactName, token, cwd);
+    baselineInfo = {
+      artifactName: effectiveBaselineArtifactName,
+      restored: Boolean(baselinePath),
+      path: baselinePath
+    };
   }
 
   let payload;
@@ -577,7 +539,7 @@ async function main() {
   let selectedResult;
   let archivePath = "";
 
-  if (inputs.command === "receipt" && (baselinePath || inputs.baselineArtifactName)) {
+  if (inputs.command === "receipt" && (baselinePath || effectiveBaselineArtifactName)) {
     if (baselinePath && baselinePath !== "latest") {
       const currentRun = await runOtaInvocation(
         otaBinary,
@@ -611,49 +573,24 @@ async function main() {
         cwd
       );
 
-      if (shouldFallbackFromUnsupportedReceiptDiff(diffRun.result)) {
-        core.notice(
-          "Installed ota does not support receipt baseline diff flags yet; using the current archived receipt without compare gating"
+      payload = parseOtaPayload(diffRun.result.stdout);
+      commandLine = diffRun.commandLine;
+      selectedResult = diffRun.result;
+      if (!archivePath && parseBoolean(inputs.archive, true)) {
+        const currentRun = await runOtaInvocation(
+          otaBinary,
+          {
+            ...inputs,
+            baseline: "",
+            failOnNewBlockers: "false"
+          },
+          cwd
         );
-        if (!selectedResult) {
-          const currentRun = await runOtaInvocation(
-            otaBinary,
-            {
-              ...inputs,
-              baseline: "",
-              failOnNewBlockers: "false"
-            },
-            cwd
-          );
-          const currentPayload = parseOtaPayload(currentRun.result.stdout);
-          archivePath = normalizeArchivePath(
-            typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
-            cwd
-          );
-          payload = currentPayload;
-          commandLine = currentRun.commandLine;
-          selectedResult = currentRun.result;
-        }
-      } else {
-        payload = parseOtaPayload(diffRun.result.stdout);
-        commandLine = diffRun.commandLine;
-        selectedResult = diffRun.result;
-        if (!archivePath && parseBoolean(inputs.archive, true)) {
-          const currentRun = await runOtaInvocation(
-            otaBinary,
-            {
-              ...inputs,
-              baseline: "",
-              failOnNewBlockers: "false"
-            },
-            cwd
-          );
-          const currentPayload = parseOtaPayload(currentRun.result.stdout);
-          archivePath = normalizeArchivePath(
-            typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
-            cwd
-          );
-        }
+        const currentPayload = parseOtaPayload(currentRun.result.stdout);
+        archivePath = normalizeArchivePath(
+          typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
+          cwd
+        );
       }
     } else if (parseBoolean(inputs.failOnNewBlockers, false)) {
       core.notice("fail-on-new-blockers was requested but no baseline could be restored; running ungated receipt output");
@@ -741,13 +678,15 @@ async function main() {
   const retentionDays = parsePositiveInteger(inputs.artifactRetentionDays, undefined);
   await uploadArtifacts(artifactName, files, retentionDays);
 
-  const shouldComment = parseBoolean(inputs.commentPr, false);
+  const shouldComment = parseBoolean(inputs.commentPr, true);
   const commentPrOnly = parseBoolean(inputs.commentPrOnly, true);
 
   if (shouldComment) {
-    if (!token) {
-      core.warning("comment-pr is enabled but no github-token was provided; skipping pull request comment");
-    } else {
+    const commentRequestedForCurrentEvent = !commentPrOnly || github.context.eventName === "pull_request";
+    if (commentRequestedForCurrentEvent && !token) {
+      throw new Error("comment-pr requires github-token or GITHUB_TOKEN with pull-requests:write permission");
+    }
+    if (commentRequestedForCurrentEvent) {
       try {
         const commented = await upsertPullRequestComment(token, commentPrOnly, buildCommentBody(summaryMarkdown));
         if (!commented) {

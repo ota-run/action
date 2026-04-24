@@ -40,8 +40,8 @@ function parsePositiveInteger(value, fallback) {
 }
 
 function parseInstallMode(value) {
-  const mode = String(value ?? "auto").trim().toLowerCase() || "auto";
-  if (mode !== "auto" && mode !== "always" && mode !== "never") {
+  const mode = String(value ?? "always").trim().toLowerCase() || "always";
+  if (mode !== "always" && mode !== "never") {
     throw new Error(`unsupported install mode: ${mode}`);
   }
   return mode;
@@ -112,18 +112,6 @@ function buildOtaArgs(inputs) {
   }
 
   return args;
-}
-
-function shouldRetryReceiptWithoutArchive(inputs, result) {
-  if (inputs.command !== "receipt" || !parseBoolean(inputs.archive, true)) {
-    return false;
-  }
-  if ((result?.exitCode ?? 0) === 0) {
-    return false;
-  }
-  const stderr = String(result?.stderr || "");
-  return stderr.includes("unexpected argument '--archive'")
-    && stderr.includes("Usage: ota receipt");
 }
 
 function parseOtaPayload(stdout) {
@@ -652,7 +640,6 @@ export {
   pushBaselineProvenanceLines,
   runUrlFromEnv,
   selectPullRequestNumberForComment,
-  shouldRetryReceiptWithoutArchive,
   statusLabel,
   topFinding
 };
