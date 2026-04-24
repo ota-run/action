@@ -57,6 +57,7 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 
 - runs `ota doctor --json` or `ota receipt --json --archive`
 - can compare a current receipt against an explicit or restored baseline receipt
+- automatically tries to restore the latest successful artifact matching `artifact-name` on pull request receipt runs when no explicit baseline source is configured
 - writes a GitHub Actions step summary
 - emits GitHub annotations from Ota findings
 - optionally posts or updates a pull request comment
@@ -70,7 +71,7 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 - self-hosted runners should be on Actions Runner `v2.327.1` or later for Node 24-based actions
 - by default the action installs Ota automatically when it is not already available
 
-## Usage
+## Recommended PR Gate
 
 ```yaml
 permissions:
@@ -89,7 +90,29 @@ steps:
       archive: true
       annotate: true
       comment-pr: true
+      artifact-name: ota-readiness
       github-token: ${{ github.token }}
+```
+
+This is the intended drop-in path:
+
+- the action archives the current receipt
+- pull request runs automatically try to restore the latest successful `ota-readiness` artifact from the same workflow on the default branch
+- the step summary and sticky pull request comment describe the current outcome, the primary blocker or change, and the next operator step
+
+Use [examples/recommended-pr-gate.yml](./examples/recommended-pr-gate.yml) when you want the copyable workflow file directly.
+
+## Minimal Usage
+
+```yaml
+permissions:
+  contents: read
+
+steps:
+  - uses: actions/checkout@v5
+  - uses: ota-run/action@v1
+    with:
+      command: receipt
 ```
 
 ## Examples
@@ -115,6 +138,7 @@ Copyable workflow files live in [examples/](./examples).
   - supports `latest` or a receipt JSON file path
 - `baseline-artifact-name`
   - restores the latest successful artifact with this name from the current workflow on the repository default branch and uses its archived receipt as the compare baseline
+  - when omitted on pull request `receipt` runs, the action automatically tries `artifact-name`
   - requires `actions: read` and a token through `github-token` or `GITHUB_TOKEN`
 - `fail-on-new-blockers`
   - when `true`, adds `--fail-on-new-blockers` for receipt baseline compares
@@ -187,6 +211,7 @@ Copyable workflow files live in [examples/](./examples).
 ## Notes
 
 - `receipt` is the better default for CI because it is archive-friendly and read-only.
+- on pull request receipt runs, the action automatically tries to restore the latest successful artifact named by `artifact-name` when no explicit baseline source is set.
 - when `baseline-artifact-name` is enabled, the action restores the latest successful artifact from the same workflow on the default branch and prefers the archived receipt inside that artifact as the compare baseline.
 - receipt baseline mode is a two-step wrapper: the action captures the current receipt for archive continuity, then runs the compare output used for summaries, annotations, comments, and failure semantics.
 - step summaries and sticky pull request comments lead with the derived outcome, then show the primary blocker or change, explicit next steps, and any receipt or baseline references available from Ota.

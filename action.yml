@@ -37,7 +37,7 @@ inputs:
     description: Optional receipt baseline passed to `ota receipt --baseline`; supports `latest` or a receipt JSON file path.
     required: false
   baseline-artifact-name:
-    description: Restore the latest successful artifact with this name from the current workflow on the default branch and use its archived receipt as the compare baseline.
+    description: Restore the latest successful artifact with this name from the current workflow on the default branch and use its archived receipt as the compare baseline. When omitted on pull request receipt runs, the action automatically tries `artifact-name`.
     required: false
   fail-on-new-blockers:
     description: Add `--fail-on-new-blockers` for receipt baseline compares and fail only on newly introduced blocker findings.

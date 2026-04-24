@@ -28,6 +28,7 @@ import {
   buildOtaArgs,
   buildSummaryMarkdown,
   commonRootDirectory,
+  defaultBaselineArtifactName,
   deriveStatus,
   findingsForAnnotations,
   inferKind,
@@ -53,6 +54,32 @@ test("buildOtaArgs defaults to archived receipt json", () => {
   });
 
   assert.deepEqual(args, ["receipt", "--json", "--archive", "--mode", "native", "."]);
+});
+
+test("defaultBaselineArtifactName auto-selects the current artifact on pull request receipt runs", () => {
+  assert.equal(defaultBaselineArtifactName({
+    command: "receipt",
+    baseline: "",
+    baselineArtifactName: "",
+    artifactName: "ota-readiness",
+    eventName: "pull_request"
+  }), "ota-readiness");
+
+  assert.equal(defaultBaselineArtifactName({
+    command: "doctor",
+    baseline: "",
+    baselineArtifactName: "",
+    artifactName: "ota-readiness",
+    eventName: "pull_request"
+  }), "");
+
+  assert.equal(defaultBaselineArtifactName({
+    command: "receipt",
+    baseline: "/tmp/baseline.json",
+    baselineArtifactName: "",
+    artifactName: "ota-readiness",
+    eventName: "pull_request"
+  }), "");
 });
 
 test("buildOtaArgs forwards receipt baseline diff gate flags", () => {
@@ -205,6 +232,48 @@ test("doctor payload derives risky status and blocker summary", () => {
   assert.match(markdown, /Review config/);
   assert.match(markdown, /### Next steps/);
   assert.match(markdown, /run ota detect --merge/);
+});
+
+test("summary markdown explains when no baseline artifact was restored", () => {
+  const payload = parseOtaPayload(JSON.stringify({
+    ok: true,
+    mode: "receipt",
+    receipt: {
+      ok: true,
+      summary: {
+        error_count: 0,
+        warn_count: 0,
+        info_count: 0,
+        step_count: 1
+      }
+    },
+    summary: {
+      error_count: 0,
+      warn_count: 0,
+      info_count: 0
+    }
+  }));
+
+  const kind = inferKind(payload);
+  const summary = normalizeSummary(payload, kind);
+  const markdown = buildSummaryMarkdown({
+    commandLine: "ota receipt --json --archive --mode native .",
+    payload,
+    kind,
+    status: "ready",
+    summary,
+    archivePath: "/tmp/repo-receipt.json",
+    artifactName: "ota-readiness",
+    outputPath: "/tmp/ota.json",
+    runUrl: null,
+    baselineInfo: {
+      artifactName: "ota-readiness",
+      restored: false,
+      path: ""
+    }
+  });
+
+  assert.match(markdown, /Baseline restore: none from `ota-readiness`; current receipt only/);
 });
 
 test("receipt diff gate passes with existing baseline debt and keeps risky status", () => {

@@ -130162,6 +130162,25 @@ function runUrlFromEnv(env) {
   return `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;
 }
 
+function defaultBaselineArtifactName({
+  command,
+  baseline,
+  baselineArtifactName,
+  artifactName,
+  eventName
+}) {
+  if (command !== "receipt") {
+    return "";
+  }
+  if (baseline || baselineArtifactName) {
+    return "";
+  }
+  if (eventName !== "pull_request") {
+    return "";
+  }
+  return artifactName || "";
+}
+
 function pushBaselineProvenanceLines(lines, baseline) {
   if (!baseline || typeof baseline !== "object") {
     return;
@@ -130242,7 +130261,18 @@ function nextSteps({ kind, status, summary, primary }) {
   return [];
 }
 
-function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, archivePath, artifactName, outputPath, runUrl }) {
+function buildSummaryMarkdown({
+  commandLine,
+  payload,
+  kind,
+  status,
+  summary,
+  archivePath,
+  artifactName,
+  outputPath,
+  runUrl,
+  baselineInfo
+}) {
   const lines = [];
   lines.push("## Ota");
   lines.push("");
@@ -130258,6 +130288,13 @@ function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, arc
   }
   if (artifactName) {
     lines.push(`- Artifact: \`${artifactName}\`${runUrl ? ` in [this run](${runUrl})` : ""}`);
+  }
+  if (baselineInfo?.artifactName && kind !== "receipt_diff") {
+    if (baselineInfo.restored) {
+      lines.push(`- Baseline restore: \`${baselineInfo.artifactName}\` -> \`${baselineInfo.path}\``);
+    } else {
+      lines.push(`- Baseline restore: none from \`${baselineInfo.artifactName}\`; current receipt only`);
+    }
   }
   if (kind === "receipt_diff") {
     lines.push("");
@@ -130832,11 +130869,35 @@ async function main() {
   const otaBinary = await ensureOtaBinary(inputs, cwd);
   const token = inputs.githubToken || process.env.GITHUB_TOKEN;
   let baselinePath = normalizeBaselineInput(inputs.baseline, cwd);
-  if (!baselinePath && inputs.baselineArtifactName) {
+  const explicitBaselineArtifactRequested = Boolean(inputs.baselineArtifactName);
+  const effectiveBaselineArtifactName = inputs.baselineArtifactName || defaultBaselineArtifactName({
+    command: inputs.command,
+    baseline: baselinePath,
+    baselineArtifactName: inputs.baselineArtifactName,
+    artifactName: inputs.artifactName,
+    eventName: github_context.eventName
+  });
+  let baselineInfo = {
+    artifactName: effectiveBaselineArtifactName,
+    restored: false,
+    path: ""
+  };
+  if (!baselinePath && effectiveBaselineArtifactName) {
     if (!token) {
-      throw new Error("baseline-artifact-name requires github-token or GITHUB_TOKEN with actions:read permission");
+      if (explicitBaselineArtifactRequested) {
+        throw new Error("baseline-artifact-name requires github-token or GITHUB_TOKEN with actions:read permission");
+      }
+      notice(
+        `No GitHub token was available to restore baseline artifact \`${effectiveBaselineArtifactName}\`; using the current receipt only`
+      );
+    } else {
+      baselinePath = await restoreBaselineArtifact(effectiveBaselineArtifactName, token, cwd);
+      baselineInfo = {
+        artifactName: effectiveBaselineArtifactName,
+        restored: Boolean(baselinePath),
+        path: baselinePath
+      };
     }
-    baselinePath = await restoreBaselineArtifact(inputs.baselineArtifactName, token, cwd);
   }
 
   let payload;
@@ -130987,7 +131048,8 @@ async function main() {
     archivePath,
     artifactName,
     outputPath,
-    runUrl
+    runUrl,
+    baselineInfo
   });
 
   if (parseBoolean(inputs.annotate, true)) {

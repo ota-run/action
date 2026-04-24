@@ -25,6 +25,8 @@ project:
   name: '@ota-run/action'
   type: application
   description: Official GitHub Action for Ota
+execution:
+  preferred: native
 runtimes:
   node: "24"
 tools:
@@ -37,6 +39,7 @@ tasks:
       Run `ota run setup` before testing or building the action locally.
     run: npm install
     safe_for_agent: true
+    internal: true
   test:
     description: Run the action test suite
     notes: |
@@ -90,8 +93,6 @@ tasks:
     run: node lib/bump-version.mjs
     after_success:
       - build
-execution:
-  preferred: native
 agent:
   entrypoint: setup
   default_task: ci

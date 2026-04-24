@@ -440,6 +440,25 @@ function runUrlFromEnv(env) {
   return `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;
 }
 
+function defaultBaselineArtifactName({
+  command,
+  baseline,
+  baselineArtifactName,
+  artifactName,
+  eventName
+}) {
+  if (command !== "receipt") {
+    return "";
+  }
+  if (baseline || baselineArtifactName) {
+    return "";
+  }
+  if (eventName !== "pull_request") {
+    return "";
+  }
+  return artifactName || "";
+}
+
 function pushBaselineProvenanceLines(lines, baseline) {
   if (!baseline || typeof baseline !== "object") {
     return;
@@ -520,7 +539,18 @@ function nextSteps({ kind, status, summary, primary }) {
   return [];
 }
 
-function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, archivePath, artifactName, outputPath, runUrl }) {
+function buildSummaryMarkdown({
+  commandLine,
+  payload,
+  kind,
+  status,
+  summary,
+  archivePath,
+  artifactName,
+  outputPath,
+  runUrl,
+  baselineInfo
+}) {
   const lines = [];
   lines.push("## Ota");
   lines.push("");
@@ -536,6 +566,13 @@ function buildSummaryMarkdown({ commandLine, payload, kind, status, summary, arc
   }
   if (artifactName) {
     lines.push(`- Artifact: \`${artifactName}\`${runUrl ? ` in [this run](${runUrl})` : ""}`);
+  }
+  if (baselineInfo?.artifactName && kind !== "receipt_diff") {
+    if (baselineInfo.restored) {
+      lines.push(`- Baseline restore: \`${baselineInfo.artifactName}\` -> \`${baselineInfo.path}\``);
+    } else {
+      lines.push(`- Baseline restore: none from \`${baselineInfo.artifactName}\`; current receipt only`);
+    }
   }
   if (kind === "receipt_diff") {
     lines.push("");
@@ -608,6 +645,7 @@ export {
   otaBinaryName,
   otaInstallDirectories,
   parseBoolean,
+  defaultBaselineArtifactName,
   parseInstallMode,
   parseOtaPayload,
   parsePositiveInteger,
