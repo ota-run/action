@@ -26,6 +26,7 @@
 
 ## Unreleased
 
+- made the action thinner and more canonical for doctor-style reporting: `doctor` and receipt baseline diff step summaries, sticky PR comments, and doctor GitHub annotations now prefer Ota's `ota annotations` renderer, while still falling back to the bundled JavaScript renderer when an older installed Ota version cannot provide that surface
 - aligned release docs and contract guidance with the current `ota run version:bump --version ...` form, including the rule that Ota command flags such as `--stream` should appear before task inputs.
 - made pull request `receipt` runs automatically try to restore the latest successful artifact named by `artifact-name` when no explicit baseline source is configured, so the default PR gate path needs less setup.
 - added a recommended PR gate workflow example and updated the action docs to make archived receipts, automatic baseline restore, annotations, and sticky PR comments the clearest adoption path.

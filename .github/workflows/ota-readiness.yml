@@ -44,6 +44,7 @@ jobs:
         uses: ota-run/action@v1
         with:
           command: receipt
+          ota-version: 1.6.8
           path: .
           archive: true
           artifact-name: ota-readiness

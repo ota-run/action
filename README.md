@@ -31,6 +31,7 @@ This action is intentionally thin:
 - it runs `ota`
 - it reads Ota JSON output
 - it publishes GitHub-native summaries, annotations, comments, and artifacts
+- for `doctor` and receipt baseline diff output, it prefers Ota's canonical `ota annotations` renderer and falls back to the bundled renderer only when the installed Ota version cannot provide that surface
 
 It does not duplicate repo readiness, diagnosis, or provisioning logic.
 

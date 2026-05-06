@@ -25,6 +25,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  appendActionReferencesMarkdown,
+  annotationModeForKind,
   buildOtaArgs,
   buildSummaryMarkdown,
   commonRootDirectory,
@@ -43,6 +45,36 @@ import {
   selectPullRequestNumberForComment,
   topFinding
 } from "../src/lib.js";
+
+test("annotationModeForKind maps canonical ota annotation modes", () => {
+  assert.equal(annotationModeForKind("doctor"), "doctor");
+  assert.equal(annotationModeForKind("receipt_diff"), "receipt-diff");
+  assert.equal(annotationModeForKind("receipt"), "");
+  assert.equal(annotationModeForKind("validate_failure"), "");
+});
+
+test("appendActionReferencesMarkdown preserves wrapper-specific references", () => {
+  const markdown = appendActionReferencesMarkdown("## ota doctor\n\nStatus: READY", {
+    commandLine: "ota doctor --json .",
+    outputPath: ".ota-action-output.json",
+    archivePath: "",
+    artifactName: "ota-readiness",
+    runUrl: "https://github.com/ota-run/action/actions/runs/123",
+    baselineInfo: {
+      artifactName: "ota-readiness",
+      restored: true,
+      path: "/tmp/baseline.json"
+    },
+    kind: "doctor"
+  });
+
+  assert.match(markdown, /## ota doctor/);
+  assert.match(markdown, /### Action references/);
+  assert.match(markdown, /- Command: `ota doctor --json \.`/);
+  assert.match(markdown, /- Output JSON: `\.ota-action-output\.json`/);
+  assert.match(markdown, /- Artifact: `ota-readiness` in \[this run\]/);
+  assert.match(markdown, /- Baseline restore: `ota-readiness` -> `\/tmp\/baseline\.json`/);
+});
 
 test("buildOtaArgs defaults to archived receipt json", () => {
   const args = buildOtaArgs({

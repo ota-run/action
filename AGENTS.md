@@ -53,19 +53,20 @@ Only install ota if it is missing and installation is approved.
 - `src/index.js` — GitHub Actions wiring only: reads inputs via `@actions/core`, resolves and installs the `ota` binary, spawns the command, uploads artifacts via `@actions/artifact`, upserts the PR comment via `@actions/github`. Not directly tested.
 - `dist/index.js` — bundled action entry point produced by `@vercel/ncc` from `src/index.js`. Must be committed. Rebuilt with `ota run build`.
 - `test/lib.test.js` — unit tests for `src/lib.js` using Node.js built-in `node:test` and `node:assert/strict`. No external test framework.
+- `test/bump-version.test.js` — unit tests for `lib/bump-version.mjs` (`bump`, `parseVersion`) using Node.js built-in `node:test` and `node:assert/strict`.
 - `lib/bump-version.mjs` — standalone version bump script invoked by `ota run version:bump`. Reads and writes `package.json` and `package-lock.json`; reads `OTA_INPUT_VERSION` env or CLI arg.
 - `action.yml` — GitHub Action manifest. Declares all inputs/outputs. `runs: using: node24` with `main: dist/index.js`.
-- `examples/` — copyable consumer workflow YAML files demonstrating the four main usage shapes.
+- `examples/` — copyable consumer workflow YAML files demonstrating six main usage shapes.
 
 ## Conventions
 
 - Add new logic to `src/lib.js` as pure exported functions; wire the call in `src/index.js`. Keep `src/index.js` free of inline business logic.
-- Tests live in `test/lib.test.js`. Import directly from `../src/lib.js`. Use `node:test` and `node:assert/strict`; no external test framework.
+- Tests live in `test/lib.test.js` (for `src/lib.js`) and `test/bump-version.test.js` (for `lib/bump-version.mjs`). Use `node:test` and `node:assert/strict`; no external test framework.
 - After editing `src/`, run `ota run build` to regenerate `dist/` and commit both together. Drift is caught by `ota run verify:dist` (`git diff --exit-code dist`).
 - The project uses ES modules (`"type": "module"` in `package.json`). Use `import`/`export` syntax throughout `src/` and `test/`.
 - Ota output status values are `ready`, `risky`, or `blocked`, derived by `deriveStatus` in `src/lib.js`.
 - The sticky PR comment is identified and updated via `COMMENT_MARKER = "<!-- ota-action -->"` defined at the top of `src/lib.js`.
-- The action automatically retries `receipt` without `--archive` when the installed `ota` version doesn't support it; see `shouldRetryReceiptWithoutArchive` in `src/lib.js`.
+- On pull request `receipt` runs without an explicit `baseline`, the action auto-selects `artifact-name` as the baseline source and attempts to restore the latest successful baseline artifact before running the diff flow; see `defaultBaselineArtifactName` in `src/lib.js` and `restoreBaselineArtifact` in `src/index.js`.
 - Runtime: Node 24 (action), Node ≥ 20 (engines). Build toolchain: npm 11, `@vercel/ncc`.
 
 ## Notes

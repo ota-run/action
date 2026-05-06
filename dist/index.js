@@ -129882,6 +129882,17 @@ function inferKind(payload) {
   throw new Error("unsupported Ota JSON shape for this action");
 }
 
+function annotationModeForKind(kind) {
+  switch (kind) {
+    case "doctor":
+      return "doctor";
+    case "receipt_diff":
+      return "receipt-diff";
+    default:
+      return "";
+  }
+}
+
 function normalizeSummary(payload, kind) {
   if (kind === "validate_failure") {
     return {
@@ -130333,6 +130344,34 @@ function buildSummaryMarkdown({
   return lines.join("\n");
 }
 
+function appendActionReferencesMarkdown(summaryMarkdown, {
+  commandLine,
+  outputPath,
+  archivePath,
+  artifactName,
+  runUrl,
+  baselineInfo,
+  kind
+}) {
+  const lines = [summaryMarkdown.trimEnd(), "", "### Action references", ""];
+  lines.push(`- Command: \`${commandLine}\``);
+  lines.push(`- Output JSON: \`${outputPath}\``);
+  if (archivePath) {
+    lines.push(`- Current archive: \`${archivePath}\``);
+  }
+  if (artifactName) {
+    lines.push(`- Artifact: \`${artifactName}\`${runUrl ? ` in [this run](${runUrl})` : ""}`);
+  }
+  if (baselineInfo?.artifactName && kind !== "receipt_diff") {
+    if (baselineInfo.restored) {
+      lines.push(`- Baseline restore: \`${baselineInfo.artifactName}\` -> \`${baselineInfo.path}\``);
+    } else {
+      lines.push(`- Baseline restore: none from \`${baselineInfo.artifactName}\`; current receipt only`);
+    }
+  }
+  return lines.join("\n");
+}
+
 function buildCommentBody(summaryMarkdown) {
   return `${COMMENT_MARKER}\n${summaryMarkdown}`;
 }
@@ -130553,6 +130592,21 @@ async function uploadArtifacts(artifactName, files, retentionDays) {
   const rootDirectory = commonRootDirectory(files);
   const options = retentionDays ? { retentionDays } : {};
   await client.uploadArtifact(artifactName, files, rootDirectory, options);
+}
+
+async function renderOtaAnnotations(bin, cwd, mode, format, inputPath, title = "") {
+  const args = ["annotations", "--mode", mode, "--format", format, "--input", inputPath];
+  if (title) {
+    args.push("--title", title);
+  }
+  const result = await runCommand(bin, args, cwd);
+  if (result.exitCode !== 0) {
+    const detail = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n");
+    throw new Error(
+      `ota annotations failed for ${mode}/${format}${detail ? `: ${detail}` : ""}`
+    );
+  }
+  return result.stdout;
 }
 
 function normalizeBaselineInput(value, cwd) {
@@ -130965,27 +131019,70 @@ async function main() {
   const status = deriveStatus(kind, summary);
   const runUrl = runUrlFromEnv(process.env);
   const artifactName = inputs.artifactName;
-  const summaryMarkdown = buildSummaryMarkdown({
-    commandLine,
-    payload,
-    kind,
-    status,
-    summary,
-    archivePath,
-    artifactName,
-    outputPath,
-    runUrl,
-    baselineInfo
-  });
+  const annotationMode = annotationModeForKind(kind);
+  const fallbackSummaryMarkdown = buildSummaryMarkdown({
+      commandLine,
+      payload,
+      kind,
+      status,
+      summary,
+      archivePath,
+      artifactName,
+      outputPath,
+      runUrl,
+      baselineInfo
+    });
+  let summaryMarkdown = fallbackSummaryMarkdown;
+  if (annotationMode) {
+    try {
+      summaryMarkdown = appendActionReferencesMarkdown(
+        (await renderOtaAnnotations(otaBinary, cwd, annotationMode, "markdown", outputPath)).trimEnd(),
+        {
+          commandLine,
+          outputPath,
+          archivePath,
+          artifactName,
+          runUrl,
+          baselineInfo,
+          kind
+        }
+      );
+    } catch (error) {
+      warning(
+        `failed to render canonical ota annotations markdown; falling back to bundled action summary: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
 
   if (parseBoolean(inputs.annotate, true)) {
     const maxAnnotations = parsePositiveInteger(inputs.maxAnnotations, 20);
-    for (const finding of findingsForAnnotations(payload, kind).slice(0, maxAnnotations)) {
-      const method = annotationMethod(finding.severity);
-      const message = [finding.why, finding.next ? `Next: ${finding.next}` : ""]
-        .filter(Boolean)
-        .join("\n");
-      core_namespaceObject[method](message || finding.summary, { title: finding.summary });
+    if (annotationMode === "doctor") {
+      try {
+        const rendered = await renderOtaAnnotations(otaBinary, cwd, annotationMode, "github", outputPath);
+        const lines = rendered.split(/\r?\n/).filter(Boolean).slice(0, maxAnnotations);
+        for (const line of lines) {
+          process.stdout.write(`${line}\n`);
+        }
+      } catch (error) {
+        warning(
+          `failed to render canonical ota annotations github output; falling back to bundled action annotations: ${error instanceof Error ? error.message : String(error)}`
+        );
+        for (const finding of findingsForAnnotations(payload, kind).slice(0, maxAnnotations)) {
+          const method = annotationMethod(finding.severity);
+          const message = [finding.why, finding.next ? `Next: ${finding.next}` : ""]
+            .filter(Boolean)
+            .join("\n");
+          core_namespaceObject[method](message || finding.summary, { title: finding.summary });
+        }
+      }
+    } else {
+      for (const finding of findingsForAnnotations(payload, kind).slice(0, maxAnnotations)) {
+        const method = annotationMethod(finding.severity);
+        const message = [finding.why, finding.next ? `Next: ${finding.next}` : ""]
+          .filter(Boolean)
+          .join("\n");
+        core_namespaceObject[method](message || finding.summary, { title: finding.summary });
+      }
     }
   }
 

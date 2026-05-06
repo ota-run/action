@@ -160,6 +160,17 @@ function inferKind(payload) {
   throw new Error("unsupported Ota JSON shape for this action");
 }
 
+function annotationModeForKind(kind) {
+  switch (kind) {
+    case "doctor":
+      return "doctor";
+    case "receipt_diff":
+      return "receipt-diff";
+    default:
+      return "";
+  }
+}
+
 function normalizeSummary(payload, kind) {
   if (kind === "validate_failure") {
     return {
@@ -611,11 +622,41 @@ function buildSummaryMarkdown({
   return lines.join("\n");
 }
 
+function appendActionReferencesMarkdown(summaryMarkdown, {
+  commandLine,
+  outputPath,
+  archivePath,
+  artifactName,
+  runUrl,
+  baselineInfo,
+  kind
+}) {
+  const lines = [summaryMarkdown.trimEnd(), "", "### Action references", ""];
+  lines.push(`- Command: \`${commandLine}\``);
+  lines.push(`- Output JSON: \`${outputPath}\``);
+  if (archivePath) {
+    lines.push(`- Current archive: \`${archivePath}\``);
+  }
+  if (artifactName) {
+    lines.push(`- Artifact: \`${artifactName}\`${runUrl ? ` in [this run](${runUrl})` : ""}`);
+  }
+  if (baselineInfo?.artifactName && kind !== "receipt_diff") {
+    if (baselineInfo.restored) {
+      lines.push(`- Baseline restore: \`${baselineInfo.artifactName}\` -> \`${baselineInfo.path}\``);
+    } else {
+      lines.push(`- Baseline restore: none from \`${baselineInfo.artifactName}\`; current receipt only`);
+    }
+  }
+  return lines.join("\n");
+}
+
 function buildCommentBody(summaryMarkdown) {
   return `${COMMENT_MARKER}\n${summaryMarkdown}`;
 }
 
 export {
+  appendActionReferencesMarkdown,
+  annotationModeForKind,
   COMMENT_MARKER,
   annotationMethod,
   artifactFiles,
