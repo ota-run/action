@@ -47,6 +47,27 @@ function parseInstallMode(value) {
   return mode;
 }
 
+function prioritizeRuntimeNodePath(env = process.env, runtimeExecPath = process.execPath) {
+  const nodeDir = path.dirname(runtimeExecPath || "");
+  if (!nodeDir || !path.isAbsolute(nodeDir)) {
+    return env;
+  }
+
+  const entries = String(env.PATH || "")
+    .split(path.delimiter)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const filtered = entries.filter((entry) => entry !== nodeDir);
+  const nextPath = filtered.length > 0
+    ? `${nodeDir}${path.delimiter}${filtered.join(path.delimiter)}`
+    : nodeDir;
+
+  return {
+    ...env,
+    PATH: nextPath
+  };
+}
+
 function normalizeOtaVersion(value) {
   if (value === undefined || value === null || String(value).trim() === "") {
     return "";
@@ -669,6 +690,7 @@ export {
   inferKind,
   normalizeArchivePath,
   normalizeOtaBinInput,
+  prioritizeRuntimeNodePath,
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,

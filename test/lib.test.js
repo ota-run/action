@@ -40,6 +40,7 @@ import {
   normalizeSummary,
   otaBinaryName,
   otaInstallDirectories,
+  prioritizeRuntimeNodePath,
   parseInstallMode,
   parseOtaPayload,
   selectPullRequestNumberForComment,
@@ -591,6 +592,15 @@ test("normalizeArchivePath resolves relative receipt paths against working direc
   assert.equal(
     normalizeArchivePath("./.ota/receipts/repo-receipt-1.json", "/repo/subdir"),
     path.resolve("/repo/subdir", "./.ota/receipts/repo-receipt-1.json")
+  );
+});
+
+test("prioritizeRuntimeNodePath moves the runtime node directory to PATH front", () => {
+  assert.equal(
+    prioritizeRuntimeNodePath({
+      PATH: "/bin:/usr/local/bin:/tmp/node"
+    }, "/tmp/node/bin/node").PATH,
+    "/tmp/node/bin:/bin:/usr/local/bin:/tmp/node"
   );
 });
 

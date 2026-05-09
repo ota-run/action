@@ -44,6 +44,7 @@ import {
   findingsForAnnotations,
   inferKind,
   normalizeArchivePath,
+  prioritizeRuntimeNodePath,
   normalizeOtaBinInput,
   normalizeOtaVersion,
   normalizeSummary,
@@ -245,7 +246,7 @@ async function renderOtaAnnotations(bin, cwd, mode, format, inputPath, title = "
   if (title) {
     args.push("--title", title);
   }
-  const result = await runCommand(bin, args, cwd);
+  const result = await runCommand(bin, args, cwd, prioritizeRuntimeNodePath());
   if (result.exitCode !== 0) {
     const detail = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n");
     throw new Error(
@@ -418,7 +419,7 @@ async function runOtaInvocation(otaBinary, inputs, cwd) {
 
   core.info(`Running ${commandLine} in ${cwd}`);
 
-  const result = await runCommand(otaBinary, args, cwd);
+  const result = await runCommand(otaBinary, args, cwd, prioritizeRuntimeNodePath());
 
   if (result.stderr.trim()) {
     core.info(result.stderr.trim());

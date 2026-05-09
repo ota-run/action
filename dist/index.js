@@ -129769,6 +129769,27 @@ function parseInstallMode(value) {
   return mode;
 }
 
+function prioritizeRuntimeNodePath(env = process.env, runtimeExecPath = process.execPath) {
+  const nodeDir = external_node_path_.dirname(runtimeExecPath || "");
+  if (!nodeDir || !external_node_path_.isAbsolute(nodeDir)) {
+    return env;
+  }
+
+  const entries = String(env.PATH || "")
+    .split(external_node_path_.delimiter)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const filtered = entries.filter((entry) => entry !== nodeDir);
+  const nextPath = filtered.length > 0
+    ? `${nodeDir}${external_node_path_.delimiter}${filtered.join(external_node_path_.delimiter)}`
+    : nodeDir;
+
+  return {
+    ...env,
+    PATH: nextPath
+  };
+}
+
 function normalizeOtaVersion(value) {
   if (value === undefined || value === null || String(value).trim() === "") {
     return "";
@@ -130599,7 +130620,7 @@ async function renderOtaAnnotations(bin, cwd, mode, format, inputPath, title = "
   if (title) {
     args.push("--title", title);
   }
-  const result = await runCommand(bin, args, cwd);
+  const result = await runCommand(bin, args, cwd, prioritizeRuntimeNodePath());
   if (result.exitCode !== 0) {
     const detail = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n");
     throw new Error(
@@ -130772,7 +130793,7 @@ async function runOtaInvocation(otaBinary, inputs, cwd) {
 
   info(`Running ${commandLine} in ${cwd}`);
 
-  const result = await runCommand(otaBinary, args, cwd);
+  const result = await runCommand(otaBinary, args, cwd, prioritizeRuntimeNodePath());
 
   if (result.stderr.trim()) {
     info(result.stderr.trim());
