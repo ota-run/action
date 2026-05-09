@@ -140,16 +140,24 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          release_notes_path="$(mktemp)"
+          awk '/^## Unreleased/{flag=1; next} /^## /{ if(flag) {exit} } flag {print}' CHANGELOG.md > "$release_notes_path"
+          if ! grep -q . "$release_notes_path"; then
+            echo "## Release notes" > "$release_notes_path"
+            echo "" >> "$release_notes_path"
+            echo "Released as ${RELEASE_TAG}." >> "$release_notes_path"
+          fi
+
           git tag "${RELEASE_TAG}" "${HEAD_SHA}"
           git tag -f "${MAJOR_TAG}" "${HEAD_SHA}"
           git push origin "${RELEASE_TAG}"
           git push origin "${MAJOR_TAG}" --force
 
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            gh release edit "${RELEASE_TAG}" --latest
+            gh release edit "${RELEASE_TAG}" --latest --notes-file "$release_notes_path"
           else
             gh release create "${RELEASE_TAG}" \
               --verify-tag \
-              --generate-notes \
+              --notes-file "$release_notes_path" \
               --latest
           fi
