@@ -95,6 +95,70 @@ function pathEntries(env = process.env) {
     .filter(Boolean);
 }
 
+const cachedNodeExecutablePath = { value: undefined };
+
+function parseNodeMajorFromVersion(output) {
+  const match = String(output).match(/\bv(\d+)\.\d+\.\d+/);
+  if (!match) {
+    return null;
+  }
+  return Number.parseInt(match[1], 10);
+}
+
+async function nodeVersionFromExecutable(executablePath, cwd, env = process.env) {
+  const result = await runCommand(executablePath, ["--version"], cwd, env);
+  if (result.exitCode !== 0) {
+    return null;
+  }
+  return parseNodeMajorFromVersion(`${result.stdout}\n${result.stderr}`);
+}
+
+async function resolvePreferredNodeExecutable(env = process.env, cwd = process.cwd()) {
+  if (cachedNodeExecutablePath.value !== undefined) {
+    return cachedNodeExecutablePath.value;
+  }
+
+  const candidates = new Set();
+
+  const candidateList = executableCandidates("node", env)
+    .filter((candidate) => path.basename(candidate).toLowerCase().startsWith("node"));
+
+  for (const candidate of candidateList) {
+    candidates.add(path.resolve(candidate));
+  }
+
+  if (process.execPath) {
+    candidates.add(path.resolve(process.execPath));
+  }
+
+  let preferred = process.execPath;
+  let preferredMajor = parseNodeMajorFromVersion(process.version) ?? 0;
+
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate, fsSync.constants.X_OK);
+    } catch {
+      continue;
+    }
+
+    const version = await nodeVersionFromExecutable(candidate, cwd, env);
+    if (version !== null && version > preferredMajor) {
+      preferredMajor = version;
+      preferred = candidate;
+    }
+  }
+
+  cachedNodeExecutablePath.value = preferred || process.execPath;
+  core.debug(`Selected node executable for Ota invocations: ${cachedNodeExecutablePath.value}`);
+  return cachedNodeExecutablePath.value;
+}
+
+async function runOtaWithPreferredNodeEnv(bin, args, cwd) {
+  const preferredNode = await resolvePreferredNodeExecutable(process.env, cwd);
+  const invocationEnv = prioritizeRuntimeNodePath(process.env, preferredNode);
+  return await runCommand(bin, args, cwd, invocationEnv);
+}
+
 function executableCandidates(bin, env = process.env, platform = process.platform) {
   const pathLike = bin.includes("/") || bin.includes("\\") || path.isAbsolute(bin);
   const extensions = platform === "win32"
@@ -246,7 +310,7 @@ async function renderOtaAnnotations(bin, cwd, mode, format, inputPath, title = "
   if (title) {
     args.push("--title", title);
   }
-  const result = await runCommand(bin, args, cwd, prioritizeRuntimeNodePath());
+  const result = await runOtaWithPreferredNodeEnv(bin, args, cwd);
   if (result.exitCode !== 0) {
     const detail = [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join("\n");
     throw new Error(
@@ -419,7 +483,7 @@ async function runOtaInvocation(otaBinary, inputs, cwd) {
 
   core.info(`Running ${commandLine} in ${cwd}`);
 
-  const result = await runCommand(otaBinary, args, cwd, prioritizeRuntimeNodePath());
+  const result = await runOtaWithPreferredNodeEnv(otaBinary, args, cwd);
 
   if (result.stderr.trim()) {
     core.info(result.stderr.trim());
