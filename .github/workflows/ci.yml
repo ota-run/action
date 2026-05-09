@@ -42,7 +42,7 @@ jobs:
       - name: Setup ota
         uses: ota-run/setup@v1
         with:
-          ota-version: 1.6.8
+          ota-version: 1.6.9
 
       - name: Validate contract
         run: ota validate
