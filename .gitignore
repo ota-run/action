@@ -27,3 +27,7 @@
 coverage/
 licenses.txt
 node_modules/
+
+# Ota local runtime artifacts
+.ota/state/
+.ota/receipts/
