@@ -95,3 +95,61 @@ jobs:
           path: .github/fixtures/smoke
           annotate: false
           artifact-name: ota-smoke-${{ matrix.os }}
+
+  release:
+    name: auto release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - repo
+      - hosted-runner-smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_version="$(node -p "require('./package.json').version")"
+          release_tag="v${release_version}"
+          major_tag="v${release_version%%.*}"
+
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          echo "major_tag=${major_tag}" >> "$GITHUB_OUTPUT"
+
+          if git ls-remote --exit-code --refs --tags origin "refs/tags/${release_tag}" >/dev/null 2>&1; then
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag and publish release
+        if: steps.release.outputs.tag_exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
+          MAJOR_TAG: ${{ steps.release.outputs.major_tag }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag "${RELEASE_TAG}" "${HEAD_SHA}"
+          git tag -f "${MAJOR_TAG}" "${HEAD_SHA}"
+          git push origin "${RELEASE_TAG}"
+          git push origin "${MAJOR_TAG}" --force
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" --latest
+          else
+            gh release create "${RELEASE_TAG}" \
+              --verify-tag \
+              --generate-notes \
+              --latest
+          fi
