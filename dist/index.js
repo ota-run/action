@@ -129820,7 +129820,7 @@ function otaInstallDirectories(env = process.env, platform = process.platform) {
 }
 
 function buildOtaArgs(inputs) {
-  if (inputs.command !== "doctor" && inputs.command !== "receipt") {
+  if (inputs.command !== "doctor" && inputs.command !== "receipt" && inputs.command !== "proof") {
     throw new Error(`unsupported command: ${inputs.command}`);
   }
   if (inputs.executionMode !== "native" && inputs.executionMode !== "container") {
@@ -129828,7 +129828,9 @@ function buildOtaArgs(inputs) {
   }
 
   const command = inputs.command;
-  const args = [command, "--json"];
+  const args = command === "proof"
+    ? ["proof", "runtime", "--json"]
+    : [command, "--json"];
 
   if (command === "receipt" && parseBoolean(inputs.archive, true) && !inputs.baseline) {
     args.push("--archive");
@@ -129900,6 +129902,9 @@ function inferKind(payload) {
   }
   if (payload.mode === "receipt" && payload.receipt) {
     return "receipt";
+  }
+  if (payload.mode === "runtime-proof" && payload.summary && typeof payload.path === "string") {
+    return "proof";
   }
   if (payload.summary && Array.isArray(payload.findings) && typeof payload.mode === "string") {
     return "doctor";
@@ -130133,6 +130138,10 @@ function findingsForAnnotations(payload, kind) {
     return Array.isArray(payload.introduced) ? payload.introduced : [];
   }
 
+  if (kind === "proof") {
+    return [];
+  }
+
   return Array.isArray(payload.findings) ? payload.findings : [];
 }
 
@@ -130142,6 +130151,21 @@ function artifactFiles(outputPath, archivePath) {
     files.push(archivePath);
   }
   return files;
+}
+
+function proofArtifactPaths(payload, cwd, pathModule = external_node_path_) {
+  if (!payload || payload.mode !== "runtime-proof" || !payload.artifacts || typeof payload.artifacts !== "object") {
+    return [];
+  }
+
+  const files = [];
+  for (const value of Object.values(payload.artifacts)) {
+    if (typeof value !== "string" || value.trim() === "") {
+      continue;
+    }
+    files.push(pathModule.resolve(cwd, value));
+  }
+  return [...new Set(files)];
 }
 
 function commonRootDirectory(files, pathModule = external_node_path_) {
@@ -130295,7 +130319,8 @@ function buildSummaryMarkdown({
   artifactName,
   outputPath,
   runUrl,
-  baselineInfo
+  baselineInfo,
+  proofArtifacts
 }) {
   const lines = [];
   lines.push("## Ota");
@@ -130312,6 +130337,15 @@ function buildSummaryMarkdown({
   }
   if (artifactName) {
     lines.push(`- Artifact: \`${artifactName}\`${runUrl ? ` in [this run](${runUrl})` : ""}`);
+  }
+  if (proofArtifacts?.topology) {
+    lines.push(`- Topology: \`${proofArtifacts.topology}\``);
+  }
+  if (proofArtifacts?.doctor) {
+    lines.push(`- Doctor: \`${proofArtifacts.doctor}\``);
+  }
+  if (proofArtifacts?.upLog) {
+    lines.push(`- Up log: \`${proofArtifacts.upLog}\``);
   }
   if (baselineInfo?.artifactName && kind !== "receipt_diff") {
     if (baselineInfo.restored) {
@@ -130376,7 +130410,8 @@ function appendActionReferencesMarkdown(summaryMarkdown, {
   artifactName,
   runUrl,
   baselineInfo,
-  kind
+  kind,
+  proofArtifacts
 }) {
   const lines = [summaryMarkdown.trimEnd(), "", "### Action references", ""];
   lines.push(`- Command: \`${commandLine}\``);
@@ -130386,6 +130421,15 @@ function appendActionReferencesMarkdown(summaryMarkdown, {
   }
   if (artifactName) {
     lines.push(`- Artifact: \`${artifactName}\`${runUrl ? ` in [this run](${runUrl})` : ""}`);
+  }
+  if (proofArtifacts?.topology) {
+    lines.push(`- Topology: \`${proofArtifacts.topology}\``);
+  }
+  if (proofArtifacts?.doctor) {
+    lines.push(`- Doctor: \`${proofArtifacts.doctor}\``);
+  }
+  if (proofArtifacts?.upLog) {
+    lines.push(`- Up log: \`${proofArtifacts.upLog}\``);
   }
   if (baselineInfo?.artifactName && kind !== "receipt_diff") {
     if (baselineInfo.restored) {
@@ -130999,6 +131043,7 @@ async function main() {
   let commandLine;
   let selectedResult;
   let archivePath = "";
+  let proofArtifactFiles = [];
 
   if (inputs.command === "receipt" && (baselinePath || effectiveBaselineArtifactName)) {
     if (baselinePath && baselinePath !== "latest") {
@@ -131100,6 +131145,7 @@ async function main() {
       typeof payload.archive_path === "string" ? payload.archive_path : "",
       cwd
     );
+    proofArtifactFiles = proofArtifactPaths(payload, cwd);
   }
 
   await promises_.writeFile(outputPath, selectedResult.stdout, "utf8");
@@ -131110,6 +131156,13 @@ async function main() {
   const runUrl = runUrlFromEnv(process.env);
   const artifactName = inputs.artifactName;
   const annotationMode = annotationModeForKind(kind);
+  const proofArtifacts = kind === "proof"
+    ? {
+      topology: typeof payload.artifacts?.topology === "string" ? external_node_path_.resolve(cwd, payload.artifacts.topology) : "",
+      doctor: typeof payload.artifacts?.doctor === "string" ? external_node_path_.resolve(cwd, payload.artifacts.doctor) : "",
+      upLog: typeof payload.artifacts?.up_log === "string" ? external_node_path_.resolve(cwd, payload.artifacts.up_log) : ""
+    }
+    : null;
   const fallbackSummaryMarkdown = buildSummaryMarkdown({
       commandLine,
       payload,
@@ -131120,7 +131173,8 @@ async function main() {
       artifactName,
       outputPath,
       runUrl,
-      baselineInfo
+      baselineInfo,
+      proofArtifacts
     });
   let summaryMarkdown = fallbackSummaryMarkdown;
   if (annotationMode) {
@@ -131134,7 +131188,8 @@ async function main() {
           artifactName,
           runUrl,
           baselineInfo,
-          kind
+          kind,
+          proofArtifacts
         }
       );
     } catch (error) {
@@ -131178,7 +131233,7 @@ async function main() {
 
   await summary_summary.addRaw(summaryMarkdown, true).write();
 
-  const files = artifactFiles(outputPath, archivePath);
+  const files = [...new Set([...artifactFiles(outputPath, archivePath), ...proofArtifactFiles])];
   const retentionDays = parsePositiveInteger(inputs.artifactRetentionDays, undefined);
   await uploadArtifacts(artifactName, files, retentionDays);
 

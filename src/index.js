@@ -54,6 +54,7 @@ import {
   parseInstallMode,
   parseOtaPayload,
   parsePositiveInteger,
+  proofArtifactPaths,
   runUrlFromEnv,
   selectPullRequestNumberForComment,
   topFinding
@@ -621,6 +622,7 @@ async function main() {
   let commandLine;
   let selectedResult;
   let archivePath = "";
+  let proofArtifactFiles = [];
 
   if (inputs.command === "receipt" && (baselinePath || effectiveBaselineArtifactName)) {
     if (baselinePath && baselinePath !== "latest") {
@@ -722,6 +724,7 @@ async function main() {
       typeof payload.archive_path === "string" ? payload.archive_path : "",
       cwd
     );
+    proofArtifactFiles = proofArtifactPaths(payload, cwd);
   }
 
   await fs.writeFile(outputPath, selectedResult.stdout, "utf8");
@@ -732,6 +735,13 @@ async function main() {
   const runUrl = runUrlFromEnv(process.env);
   const artifactName = inputs.artifactName;
   const annotationMode = annotationModeForKind(kind);
+  const proofArtifacts = kind === "proof"
+    ? {
+      topology: typeof payload.artifacts?.topology === "string" ? path.resolve(cwd, payload.artifacts.topology) : "",
+      doctor: typeof payload.artifacts?.doctor === "string" ? path.resolve(cwd, payload.artifacts.doctor) : "",
+      upLog: typeof payload.artifacts?.up_log === "string" ? path.resolve(cwd, payload.artifacts.up_log) : ""
+    }
+    : null;
   const fallbackSummaryMarkdown = buildSummaryMarkdown({
       commandLine,
       payload,
@@ -742,7 +752,8 @@ async function main() {
       artifactName,
       outputPath,
       runUrl,
-      baselineInfo
+      baselineInfo,
+      proofArtifacts
     });
   let summaryMarkdown = fallbackSummaryMarkdown;
   if (annotationMode) {
@@ -756,7 +767,8 @@ async function main() {
           artifactName,
           runUrl,
           baselineInfo,
-          kind
+          kind,
+          proofArtifacts
         }
       );
     } catch (error) {
@@ -800,7 +812,7 @@ async function main() {
 
   await core.summary.addRaw(summaryMarkdown, true).write();
 
-  const files = artifactFiles(outputPath, archivePath);
+  const files = [...new Set([...artifactFiles(outputPath, archivePath), ...proofArtifactFiles])];
   const retentionDays = parsePositiveInteger(inputs.artifactRetentionDays, undefined);
   await uploadArtifacts(artifactName, files, retentionDays);
 

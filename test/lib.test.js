@@ -40,6 +40,7 @@ import {
   normalizeSummary,
   otaBinaryName,
   otaInstallDirectories,
+  proofArtifactPaths,
   prioritizeRuntimeNodePath,
   parseInstallMode,
   parseOtaPayload,
@@ -149,11 +150,59 @@ test("buildOtaArgs builds doctor arguments without archive", () => {
   assert.deepEqual(args, ["doctor", "--json", "--mode", "container", "--workflow", "docs", "--member", "api", "/repo"]);
 });
 
+test("buildOtaArgs builds proof runtime arguments", () => {
+  const args = buildOtaArgs({
+    command: "proof",
+    executionMode: "container",
+    workflow: "docs",
+    path: "/repo"
+  });
+
+  assert.deepEqual(args, ["proof", "runtime", "--json", "--mode", "container", "--workflow", "docs", "/repo"]);
+});
+
 test("buildOtaArgs rejects unsupported command", () => {
   assert.throws(
     () => buildOtaArgs({ command: "up", executionMode: "native", path: "." }),
     /unsupported command/
   );
+});
+
+test("proof runtime payload derives blocked status and artifact paths", () => {
+  const payload = parseOtaPayload(JSON.stringify({
+    ok: false,
+    path: "/repo/ota.yaml",
+    mode: "runtime-proof",
+    workflow: "docs",
+    phase: "service readiness",
+    summary: {
+      verdict: "not_ready",
+      error_count: 1,
+      warn_count: 0,
+      info_count: 0,
+      primary_blocker: {
+        severity: "error",
+        summary: "Surface readiness failed: site",
+        why: "the selected workflow surface `site` on run task `dev` did not become ready",
+        next: "inspect the proof artifacts and repair the docs workflow"
+      }
+    },
+    artifacts: {
+      topology: ".ota/proof/docs/topology.json",
+      doctor: ".ota/proof/docs/doctor.json",
+      up_log: ".ota/proof/docs/up.log"
+    }
+  }));
+
+  const kind = inferKind(payload);
+  const summary = normalizeSummary(payload, kind);
+  assert.equal(kind, "proof");
+  assert.equal(deriveStatus(kind, summary), "blocked");
+  assert.deepEqual(proofArtifactPaths(payload, "/repo"), [
+    path.resolve("/repo", ".ota/proof/docs/topology.json"),
+    path.resolve("/repo", ".ota/proof/docs/doctor.json"),
+    path.resolve("/repo", ".ota/proof/docs/up.log")
+  ]);
 });
 
 test("parseInstallMode defaults to always and rejects unsupported values", () => {

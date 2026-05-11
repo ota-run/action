@@ -26,6 +26,7 @@
 
 ## Unreleased
 
+- added `command: proof` to `ota-run/action`, backed by `ota proof runtime`, so CI can start a selected workflow, wait for readiness, and archive the canonical runtime-proof artifacts without repo-local background/wait glue.
 - added a `workflow` input to `ota-run/action` so CI can target a non-default Ota workflow explicitly instead of always inheriting the repo default.
 - clarified in the action docs that `command: receipt` stays read-only and does not implicitly start live workflow run tasks; jobs that archive receipts for live-surface workflows should start them first or target a different workflow explicitly.
 

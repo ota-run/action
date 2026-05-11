@@ -56,13 +56,13 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 
 ## What v1 does
 
-- runs `ota doctor --json` or `ota receipt --json --archive`
+- runs `ota doctor --json`, `ota receipt --json --archive`, or `ota proof runtime --json`
 - can compare a current receipt against an explicit or auto-restored baseline receipt
 - automatically restores the latest successful artifact matching `artifact-name` on pull request receipt runs when no explicit baseline file is configured
 - writes a GitHub Actions step summary
 - emits GitHub annotations from Ota findings
 - posts or updates a sticky pull request comment by default
-- uploads the ota JSON output and any archived receipt file as workflow artifacts
+- uploads the ota JSON output plus any archived receipt or runtime-proof artifacts as workflow artifacts
 - formats summaries and sticky pull request comments around outcome, primary blocker or change, next steps, and receipt or baseline references
 
 ## Requirements
@@ -116,6 +116,23 @@ steps:
       command: receipt
 ```
 
+## Runtime Proof Usage
+
+Use this when the selected workflow only becomes ready after starting a live run task and you want the action to own that orchestration instead of writing repo-local background and wait glue.
+
+```yaml
+permissions:
+  contents: read
+
+steps:
+  - uses: actions/checkout@v5
+  - uses: ota-run/action@v1
+    with:
+      command: proof
+      workflow: docs
+      execution-mode: container
+```
+
 ## Examples
 
 Copyable workflow files live in [examples/](./examples).
@@ -129,7 +146,7 @@ Copyable workflow files live in [examples/](./examples).
 ## Inputs
 
 - `command`
-  - `receipt` or `doctor`
+  - `receipt`, `doctor`, or `proof`
   - default: `receipt`
 - `path`
   - repo or contract target passed to Ota
@@ -208,11 +225,12 @@ Copyable workflow files live in [examples/](./examples).
 
 ## Notes
 
-- `receipt` is the better default for CI because it is archive-friendly and read-only.
+- `receipt` is the better default for CI when you want archive-friendly, read-only reporting against a repo that is already ready or against a workflow that does not require a live run task.
+- `proof` is the right CI surface when the selected workflow only becomes ready after Ota starts and verifies a live runtime path.
 - `workflow` lets the action target a non-default repo workflow explicitly when the contract exposes more than one front door.
 - on pull request receipt runs, the action automatically restores the latest successful artifact named by `artifact-name` when no explicit baseline file is set.
 - receipt baseline mode is a two-step wrapper: the action captures the current receipt for archive continuity, then runs the compare output used for summaries, annotations, comments, and failure semantics.
-- `receipt` does not start workflow run tasks for you. If the selected workflow defines live surface readiness on a run task, start that workflow first with `ota up` or target a different workflow explicitly.
+- `receipt` does not start workflow run tasks for you. Use `command: proof` when the selected workflow defines live surface readiness on a run task and CI needs Ota to start it, wait for readiness, and capture the canonical proof artifacts.
 - the canonical pull-request gate expects `github-token`, `actions: read`, and `pull-requests: write`; missing them is now a configuration error, not a soft fallback.
 - step summaries and sticky pull request comments lead with the derived outcome, then show the primary blocker or change, explicit next steps, and any receipt or baseline references available from Ota.
 - receipt diff summaries and sticky pull request comments include baseline provenance when Ota provides it, including the source plus selection path, archive path, and promoted or archived time.
