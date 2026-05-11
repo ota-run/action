@@ -26,6 +26,9 @@
 
 ## Unreleased
 
+- added a `workflow` input to `ota-run/action` so CI can target a non-default Ota workflow explicitly instead of always inheriting the repo default.
+- clarified in the action docs that `command: receipt` stays read-only and does not implicitly start live workflow run tasks; jobs that archive receipts for live-surface workflows should start them first or target a different workflow explicitly.
+
 ## 1.0.8 - 2026-05-09
 
 - made the action thinner and more canonical for doctor-style reporting: `doctor` and receipt baseline diff step summaries, sticky PR comments, and doctor GitHub annotations now prefer Ota's `ota annotations` renderer, while still falling back to the bundled JavaScript renderer when an older installed Ota version cannot provide that surface

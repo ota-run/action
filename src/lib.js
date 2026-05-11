@@ -124,6 +124,10 @@ function buildOtaArgs(inputs) {
     args.push("--mode", inputs.executionMode);
   }
 
+  if (inputs.workflow) {
+    args.push("--workflow", inputs.workflow);
+  }
+
   if (inputs.member) {
     args.push("--member", inputs.member);
   }

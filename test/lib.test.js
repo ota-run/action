@@ -141,11 +141,12 @@ test("buildOtaArgs builds doctor arguments without archive", () => {
     command: "doctor",
     archive: "true",
     executionMode: "container",
+    workflow: "docs",
     member: "api",
     path: "/repo"
   });
 
-  assert.deepEqual(args, ["doctor", "--json", "--mode", "container", "--member", "api", "/repo"]);
+  assert.deepEqual(args, ["doctor", "--json", "--mode", "container", "--workflow", "docs", "--member", "api", "/repo"]);
 });
 
 test("buildOtaArgs rejects unsupported command", () => {

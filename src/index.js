@@ -565,6 +565,7 @@ async function main() {
     failOnNewBlockers: core.getInput("fail-on-new-blockers"),
     workingDirectory: core.getInput("working-directory") || ".",
     executionMode: core.getInput("execution-mode") || "native",
+    workflow: core.getInput("workflow"),
     member: core.getInput("member"),
     archive: core.getInput("archive"),
     annotate: core.getInput("annotate"),

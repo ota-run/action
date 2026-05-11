@@ -48,6 +48,9 @@ inputs:
     description: "Ota execution mode. Supported values: native, container."
     required: false
     default: native
+  workflow:
+    description: Optional workflow name passed to Ota.
+    required: false
   member:
     description: Optional monorepo member target.
     required: false
