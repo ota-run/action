@@ -44,6 +44,7 @@ import {
   prioritizeRuntimeNodePath,
   parseInstallMode,
   parseOtaPayload,
+  resolveOtaInstallPlan,
   selectPullRequestNumberForComment,
   topFinding
 } from "../src/lib.js";
@@ -205,11 +206,78 @@ test("proof runtime payload derives blocked status and artifact paths", () => {
   ]);
 });
 
-test("parseInstallMode defaults to always and rejects unsupported values", () => {
-  assert.equal(parseInstallMode(""), "always");
+test("parseInstallMode defaults to auto and rejects unsupported values", () => {
+  assert.equal(parseInstallMode(""), "auto");
+  assert.equal(parseInstallMode("auto"), "auto");
   assert.equal(parseInstallMode("always"), "always");
   assert.equal(parseInstallMode("never"), "never");
   assert.throws(() => parseInstallMode("sometimes"), /unsupported install mode/);
+});
+
+test("resolveOtaInstallPlan reuses existing binaries in auto mode", () => {
+  assert.deepEqual(
+    resolveOtaInstallPlan({
+      installMode: "auto",
+      requestedVersion: "",
+      preferredExisting: "/opt/ota/bin/ota",
+      preferred: "ota"
+    }),
+    { action: "use-existing", path: "/opt/ota/bin/ota" }
+  );
+});
+
+test("resolveOtaInstallPlan installs when auto mode has no binary or a requested version", () => {
+  assert.deepEqual(
+    resolveOtaInstallPlan({
+      installMode: "auto",
+      requestedVersion: "",
+      preferredExisting: "",
+      preferred: "ota"
+    }),
+    { action: "install" }
+  );
+
+  assert.deepEqual(
+    resolveOtaInstallPlan({
+      installMode: "auto",
+      requestedVersion: "v1.6.9",
+      preferredExisting: "/opt/ota/bin/ota",
+      preferred: "ota"
+    }),
+    { action: "install" }
+  );
+});
+
+test("resolveOtaInstallPlan keeps never mode fail closed", () => {
+  assert.deepEqual(
+    resolveOtaInstallPlan({
+      installMode: "never",
+      requestedVersion: "",
+      preferredExisting: "/opt/ota/bin/ota",
+      preferred: "ota"
+    }),
+    { action: "use-existing", path: "/opt/ota/bin/ota" }
+  );
+
+  assert.match(
+    resolveOtaInstallPlan({
+      installMode: "never",
+      requestedVersion: "",
+      preferredExisting: "",
+      preferred: "ota"
+    }).message,
+    /install=never prevents automatic installation/
+  );
+
+  assert.match(
+    resolveOtaInstallPlan({
+      installMode: "never",
+      requestedVersion: "v1.6.9",
+      preferredExisting: "/opt/ota/bin/ota",
+      preferred: "ota"
+    }).message,
+    /ota-version requires install=auto or install=always/
+  );
 });
 
 test("normalizeOtaVersion prefixes semver values with v", () => {

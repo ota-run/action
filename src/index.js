@@ -55,6 +55,7 @@ import {
   parseOtaPayload,
   parsePositiveInteger,
   proofArtifactPaths,
+  resolveOtaInstallPlan,
   runUrlFromEnv,
   selectPullRequestNumberForComment,
   topFinding
@@ -236,17 +237,20 @@ async function ensureOtaBinary(inputs, cwd) {
   const preferred = normalizeOtaBinInput(inputs.otaBin, cwd);
   const binaryName = otaBinaryName();
   const preferredExisting = await resolveExistingBinary(preferred);
+  const installPlan = resolveOtaInstallPlan({
+    installMode,
+    requestedVersion,
+    preferredExisting,
+    preferred
+  });
 
-  if (installMode === "never") {
-    if (requestedVersion) {
-      throw new Error("ota-version requires install=always; install=never cannot honor a requested installer version");
-    }
-    if (preferredExisting) {
-      return preferredExisting;
-    }
-    throw new Error(
-      `ota binary \`${preferred}\` was not found and install=never prevents automatic installation`
-    );
+  if (installPlan.action === "error") {
+    throw new Error(installPlan.message);
+  }
+
+  if (installPlan.action === "use-existing") {
+    core.info(`Using existing ota binary at ${installPlan.path}`);
+    return installPlan.path;
   }
 
   core.info(
@@ -576,7 +580,7 @@ async function main() {
     artifactName: core.getInput("artifact-name") || "ota-readiness",
     artifactRetentionDays: core.getInput("artifact-retention-days"),
     failOnError: core.getInput("fail-on-error"),
-    install: core.getInput("install") || "always",
+    install: core.getInput("install") || "auto",
     otaVersion: core.getInput("ota-version"),
     otaBin: core.getInput("ota-bin") || "ota",
     outputPath: core.getInput("output-path") || ".ota-action-output.json",

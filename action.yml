@@ -86,11 +86,11 @@ inputs:
     required: false
     default: "true"
   install:
-    description: "Ota installation mode. Supported values: always, never."
+    description: "Ota installation mode. Supported values: auto, always, never. Use never when ota-run/setup installed Ota earlier in the job."
     required: false
-    default: always
+    default: auto
   ota-version:
-    description: Optional Ota version to install when the action performs installation.
+    description: Optional Ota version to install when the action performs installation. Prefer ota-run/setup for pinned installs.
     required: false
   ota-bin:
     description: Ota binary name or path to use after installation resolution.

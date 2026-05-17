@@ -37,7 +37,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+      - uses: ota-run/setup@v1
       - name: Publish ota readiness
         uses: ota-run/action@v1
         with:
           command: receipt
+          install: never

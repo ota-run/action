@@ -69,7 +69,8 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 
 - the workflow should use `permissions: actions: read` and `permissions: pull-requests: write` for the canonical pull-request gate
 - self-hosted runners should be on Actions Runner `v2.327.1` or later for Node 24-based actions
-- by default the action installs Ota through the official installer on every run
+- `ota-run/setup` is the canonical Ota installation surface; this action should normally run with `install: never` after setup
+- when used alone, this action defaults to `install: auto`, reusing an existing `ota` binary and installing only when one is missing
 
 ## Recommended PR Gate
 
@@ -82,6 +83,8 @@ permissions:
 steps:
   - uses: actions/checkout@v5
 
+  - uses: ota-run/setup@v1
+
   - name: ota readiness
     uses: ota-run/action@v1
     with:
@@ -89,6 +92,7 @@ steps:
       path: .
       archive: true
       fail-on-new-blockers: true
+      install: never
       github-token: ${{ github.token }}
 ```
 
@@ -111,9 +115,11 @@ permissions:
 
 steps:
   - uses: actions/checkout@v5
+  - uses: ota-run/setup@v1
   - uses: ota-run/action@v1
     with:
       command: receipt
+      install: never
 ```
 
 ## Runtime Proof Usage
@@ -126,11 +132,13 @@ permissions:
 
 steps:
   - uses: actions/checkout@v5
+  - uses: ota-run/setup@v1
   - uses: ota-run/action@v1
     with:
       command: proof
       workflow: docs
       execution-mode: container
+      install: never
 ```
 
 ## Examples
@@ -192,13 +200,15 @@ Copyable workflow files live in [examples/](./examples).
   - default: `true`
   - baseline compare gates can report `risky` when baseline debt remains but no new blockers were introduced
 - `install`
-  - `always` or `never`
-  - default: `always`
-  - `always` installs Ota before running
-  - `never` requires Ota to already be available
+  - `auto`, `always`, or `never`
+  - default: `auto`
+  - `auto` reuses an existing Ota binary and installs only when one is missing
+  - `always` installs Ota before running, even when an Ota binary already exists
+  - `never` requires Ota to already be available; use this after `ota-run/setup`
 - `ota-version`
   - optional installer version such as `v1.0.1` or `1.0.1`
   - when set, the action installs that version through the official installer
+  - prefer `ota-run/setup` for pinned installation in reusable workflows
 - `ota-bin`
   - Ota binary name or path
   - default: `ota`
@@ -236,6 +246,7 @@ Copyable workflow files live in [examples/](./examples).
 - receipt diff summaries and sticky pull request comments include baseline provenance when Ota provides it, including the source plus selection path, archive path, and promoted or archived time.
 - `doctor` is useful when you want the richer top-level `verdict` and `primary_blocker` semantics.
 - archived receipts are referenced by local path in the summary and uploaded as artifacts when available.
+- use `ota-run/setup` plus `install: never` for the canonical split where setup installs Ota and this action only runs/report gates
 - use `install: never` on self-hosted runners when Ota is already provisioned and you want the action to fail closed instead of mutating the runner
 
 ## Developing This Repo

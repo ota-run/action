@@ -36,12 +36,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+      - uses: ota-run/setup@v1
       - name: Publish ota readiness
         uses: ota-run/action@v1
         with:
           command: receipt
           path: .
           archive: true
+          install: never
           max-annotations: 20
           artifact-name: ota-readiness
           github-token: ${{ github.token }}

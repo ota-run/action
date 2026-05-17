@@ -44,12 +44,15 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
+      - uses: ota-run/setup@v1
+        with:
+          ota-version: 1.6.9
       - name: Publish ota readiness
         uses: ota-run/action@v1
         with:
           command: receipt
-          ota-version: 1.6.9
           path: .
           archive: true
+          install: never
           artifact-name: ota-readiness
           github-token: ${{ github.token }}

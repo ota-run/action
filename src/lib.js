@@ -40,11 +40,40 @@ function parsePositiveInteger(value, fallback) {
 }
 
 function parseInstallMode(value) {
-  const mode = String(value ?? "always").trim().toLowerCase() || "always";
-  if (mode !== "always" && mode !== "never") {
+  const mode = String(value ?? "auto").trim().toLowerCase() || "auto";
+  if (mode !== "auto" && mode !== "always" && mode !== "never") {
     throw new Error(`unsupported install mode: ${mode}`);
   }
   return mode;
+}
+
+function resolveOtaInstallPlan({
+  installMode,
+  requestedVersion,
+  preferredExisting,
+  preferred
+}) {
+  if (installMode === "never") {
+    if (requestedVersion) {
+      return {
+        action: "error",
+        message: "ota-version requires install=auto or install=always; install=never cannot honor a requested installer version"
+      };
+    }
+    if (preferredExisting) {
+      return { action: "use-existing", path: preferredExisting };
+    }
+    return {
+      action: "error",
+      message: `ota binary \`${preferred}\` was not found and install=never prevents automatic installation`
+    };
+  }
+
+  if (installMode === "auto" && preferredExisting && !requestedVersion) {
+    return { action: "use-existing", path: preferredExisting };
+  }
+
+  return { action: "install" };
 }
 
 function prioritizeRuntimeNodePath(env = process.env, runtimeExecPath = process.execPath) {
@@ -750,6 +779,7 @@ export {
   parsePositiveInteger,
   proofArtifactPaths,
   pushBaselineProvenanceLines,
+  resolveOtaInstallPlan,
   runUrlFromEnv,
   selectPullRequestNumberForComment,
   statusLabel,

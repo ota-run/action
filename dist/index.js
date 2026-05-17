@@ -129762,11 +129762,40 @@ function parsePositiveInteger(value, fallback) {
 }
 
 function parseInstallMode(value) {
-  const mode = String(value ?? "always").trim().toLowerCase() || "always";
-  if (mode !== "always" && mode !== "never") {
+  const mode = String(value ?? "auto").trim().toLowerCase() || "auto";
+  if (mode !== "auto" && mode !== "always" && mode !== "never") {
     throw new Error(`unsupported install mode: ${mode}`);
   }
   return mode;
+}
+
+function resolveOtaInstallPlan({
+  installMode,
+  requestedVersion,
+  preferredExisting,
+  preferred
+}) {
+  if (installMode === "never") {
+    if (requestedVersion) {
+      return {
+        action: "error",
+        message: "ota-version requires install=auto or install=always; install=never cannot honor a requested installer version"
+      };
+    }
+    if (preferredExisting) {
+      return { action: "use-existing", path: preferredExisting };
+    }
+    return {
+      action: "error",
+      message: `ota binary \`${preferred}\` was not found and install=never prevents automatic installation`
+    };
+  }
+
+  if (installMode === "auto" && preferredExisting && !requestedVersion) {
+    return { action: "use-existing", path: preferredExisting };
+  }
+
+  return { action: "install" };
 }
 
 function prioritizeRuntimeNodePath(env = process.env, runtimeExecPath = process.execPath) {
@@ -130657,17 +130686,20 @@ async function ensureOtaBinary(inputs, cwd) {
   const preferred = normalizeOtaBinInput(inputs.otaBin, cwd);
   const binaryName = otaBinaryName();
   const preferredExisting = await resolveExistingBinary(preferred);
+  const installPlan = resolveOtaInstallPlan({
+    installMode,
+    requestedVersion,
+    preferredExisting,
+    preferred
+  });
 
-  if (installMode === "never") {
-    if (requestedVersion) {
-      throw new Error("ota-version requires install=always; install=never cannot honor a requested installer version");
-    }
-    if (preferredExisting) {
-      return preferredExisting;
-    }
-    throw new Error(
-      `ota binary \`${preferred}\` was not found and install=never prevents automatic installation`
-    );
+  if (installPlan.action === "error") {
+    throw new Error(installPlan.message);
+  }
+
+  if (installPlan.action === "use-existing") {
+    info(`Using existing ota binary at ${installPlan.path}`);
+    return installPlan.path;
   }
 
   info(
@@ -130997,7 +131029,7 @@ async function main() {
     artifactName: getInput("artifact-name") || "ota-readiness",
     artifactRetentionDays: getInput("artifact-retention-days"),
     failOnError: getInput("fail-on-error"),
-    install: getInput("install") || "always",
+    install: getInput("install") || "auto",
     otaVersion: getInput("ota-version"),
     otaBin: getInput("ota-bin") || "ota",
     outputPath: getInput("output-path") || ".ota-action-output.json",
