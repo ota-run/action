@@ -34,6 +34,9 @@
   stale fallback copies on PATH-standard locations
 - aligned the action repo's own contract and workflows to the new surface so CI, readiness, and
   release verification all consume repo-owned Ota bootstrap truth through `source: contract`
+- pinned the action repo's temporary setup workflow consumption to the exact `ota-run/setup`
+  commit that already ships `source: contract`, so first-party proof stays green until that setup
+  release is published under `@v1`
 - made the setup/action boundary explicit: `install` now supports `auto` as the default, reuses an existing `ota` binary before installing, and the docs/examples now teach `ota-run/setup` for installation with `ota-run/action` running/reporting via `install: never`.
 - added `command: proof` to `ota-run/action`, backed by `ota proof runtime`, so CI can start a selected workflow, wait for readiness, and archive the canonical runtime-proof artifacts without repo-local background/wait glue.
 - added a `workflow` input to `ota-run/action` so CI can target a non-default Ota workflow explicitly instead of always inheriting the repo default.

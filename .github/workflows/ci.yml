@@ -40,7 +40,7 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Setup ota
-        uses: ota-run/setup@v1
+        uses: ota-run/setup@07c9431ae0eee91399f00504dc25d6f13052d617
         with:
           source: contract
 
@@ -96,7 +96,7 @@ jobs:
         uses: ./
         with:
           command: doctor
-          path: .github/fixtures/smoke
+          path: .github/fixtures/smoke/ota.yaml
           source: contract
           contract-path: .github/fixtures/smoke/ota.yaml
           annotate: false

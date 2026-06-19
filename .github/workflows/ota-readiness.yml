@@ -44,7 +44,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
-      - uses: ota-run/setup@v1
+      - uses: ota-run/setup@07c9431ae0eee91399f00504dc25d6f13052d617
         with:
           source: contract
       - name: Publish ota readiness
