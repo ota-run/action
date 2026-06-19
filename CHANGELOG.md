@@ -37,10 +37,9 @@
 - pinned the action repo's temporary setup workflow consumption to the exact `ota-run/setup`
   commit that already ships `source: contract`, so first-party proof stays green until that setup
   release is published under `@v1`
-- switched the action repo's own pressure bootstrap truth from exact `git_rev` to the active Ota
-  branch because the current GitHub source-install lane cannot yet reliably fetch that branch-only
-  commit by raw revision across repos; the action surface still consumes contract-owned install
-  truth, but this exposes a remaining setup/install product gap
+- fixed the action repo's own pressure bootstrap truth to use the real pushed Ota commit SHA for
+  `source.kind: git_rev`; the earlier GitHub failure was caused by an invalid revision value, not
+  by a broken cross-repo `git_rev` install lane
 - made the setup/action boundary explicit: `install` now supports `auto` as the default, reuses an existing `ota` binary before installing, and the docs/examples now teach `ota-run/setup` for installation with `ota-run/action` running/reporting via `install: never`.
 - added `command: proof` to `ota-run/action`, backed by `ota proof runtime`, so CI can start a selected workflow, wait for readiness, and archive the canonical runtime-proof artifacts without repo-local background/wait glue.
 - added a `workflow` input to `ota-run/action` so CI can target a non-default Ota workflow explicitly instead of always inheriting the repo default.
