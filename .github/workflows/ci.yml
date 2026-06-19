@@ -96,9 +96,10 @@ jobs:
         uses: ./
         with:
           command: doctor
-          path: .github/fixtures/smoke/ota.yaml
+          path: .
+          working-directory: .github/fixtures/smoke
           source: contract
-          contract-path: .github/fixtures/smoke/ota.yaml
+          contract-path: ota.yaml
           annotate: false
           artifact-name: ota-smoke-${{ matrix.os }}
 
