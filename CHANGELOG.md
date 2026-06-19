@@ -26,6 +26,14 @@
 
 ## Unreleased
 
+- added contract-owned install truth to `ota-run/action`: it now supports `source: contract`
+  plus `contract-path`, can read `agent.bootstrap.ota.source` from `ota.yaml`, and can install
+  deterministic `version`, `git_rev`, `branch`, or inferred legacy shell truth instead of
+  forcing workflows to restate Ota install configuration separately
+- fixed standalone installer binary selection to prefer the freshly installed Ota binary before
+  stale fallback copies on PATH-standard locations
+- aligned the action repo's own contract and workflows to the new surface so CI, readiness, and
+  release verification all consume repo-owned Ota bootstrap truth through `source: contract`
 - made the setup/action boundary explicit: `install` now supports `auto` as the default, reuses an existing `ota` binary before installing, and the docs/examples now teach `ota-run/setup` for installation with `ota-run/action` running/reporting via `install: never`.
 - added `command: proof` to `ota-run/action`, backed by `ota proof runtime`, so CI can start a selected workflow, wait for readiness, and archive the canonical runtime-proof artifacts without repo-local background/wait glue.
 - added a `workflow` input to `ota-run/action` so CI can target a non-default Ota workflow explicitly instead of always inheriting the repo default.

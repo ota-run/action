@@ -89,6 +89,14 @@ inputs:
     description: "Ota installation mode. Supported values: auto, always, never. Use never when ota-run/setup installed Ota earlier in the job."
     required: false
     default: auto
+  source:
+    description: "Ota install source selection. Supported values: explicit, contract."
+    required: false
+    default: explicit
+  contract-path:
+    description: Path to ota.yaml or a repo directory containing it when source=contract.
+    required: false
+    default: ota.yaml
   ota-version:
     description: Optional Ota version to install when the action performs installation. Prefer ota-run/setup for pinned installs.
     required: false

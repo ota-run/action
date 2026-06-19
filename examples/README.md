@@ -35,6 +35,7 @@ inputs from the reference docs.
 - [basic-readiness.yml](basic-readiness.yml) - minimal push-only readiness summary and artifact flow
 - [baseline-regression-gate.yml](baseline-regression-gate.yml) - compare against the latest successful baseline artifact on the default branch and fail only on new blockers
 - [pr-comment-and-annotations.yml](pr-comment-and-annotations.yml) - pull-request summary with annotations and sticky comment updates
+- [contract-owned-install.yml](contract-owned-install.yml) - standalone action flow that installs ota from `agent.bootstrap.ota.source` without a separate setup step
 - [pinned-ota-version.yml](pinned-ota-version.yml) - same push-only action flow with an explicit `ota-run/setup` version
 - [self-hosted-preinstalled.yml](self-hosted-preinstalled.yml) - self-hosted runner flow that fails closed unless ota is already available
 
@@ -42,4 +43,5 @@ inputs from the reference docs.
 
 Use `ota-run/setup` for installation, then run this action with `install: never`. Use
 `command: receipt` as the default CI path unless you specifically need the richer `doctor`
-verdict surface.
+verdict surface. When this action intentionally owns installation by itself, use `source: contract`
+so workflow YAML does not duplicate `agent.bootstrap.ota.source`.

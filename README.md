@@ -70,7 +70,8 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 - the workflow should use `permissions: actions: read` and `permissions: pull-requests: write` for the canonical pull-request gate
 - self-hosted runners should be on Actions Runner `v2.327.1` or later for Node 24-based actions
 - `ota-run/setup` is the canonical Ota installation surface; this action should normally run with `install: never` after setup
-- when used alone, this action defaults to `install: auto`, reusing an existing `ota` binary and installing only when one is missing
+- when used alone, this action can derive install truth from `agent.bootstrap.ota.source` with `source: contract`
+- when used alone with the default `source: explicit`, this action defaults to `install: auto`, reusing an existing `ota` binary and installing only when one is missing
 
 ## Recommended PR Gate
 
@@ -104,6 +105,25 @@ This is the intended drop-in path:
 - the step summary and sticky pull request comment describe the current outcome, the primary blocker or change, and the next operator step
 
 Use [examples/recommended-pr-gate.yml](./examples/recommended-pr-gate.yml) when you want the copyable workflow file directly.
+
+## Standalone Contract-Owned Install
+
+Use this when you intentionally skip `ota-run/setup` but still want the job to honor the repo's
+canonical `agent.bootstrap.ota.source` truth instead of hardcoding installer version or git
+revision in workflow YAML.
+
+```yaml
+permissions:
+  contents: read
+
+steps:
+  - uses: actions/checkout@v5
+  - uses: ota-run/action@v1
+    with:
+      command: receipt
+      source: contract
+      contract-path: ota.yaml
+```
 
 ## Minimal Push-Only Usage
 
@@ -147,6 +167,7 @@ Copyable workflow files live in [examples/](./examples).
 
 - [basic-readiness.yml](./examples/basic-readiness.yml)
 - [baseline-regression-gate.yml](./examples/baseline-regression-gate.yml)
+- [contract-owned-install.yml](./examples/contract-owned-install.yml)
 - [pr-comment-and-annotations.yml](./examples/pr-comment-and-annotations.yml)
 - [pinned-ota-version.yml](./examples/pinned-ota-version.yml)
 - [self-hosted-preinstalled.yml](./examples/self-hosted-preinstalled.yml)
@@ -202,12 +223,22 @@ Copyable workflow files live in [examples/](./examples).
 - `install`
   - `auto`, `always`, or `never`
   - default: `auto`
-  - `auto` reuses an existing Ota binary and installs only when one is missing
+  - `auto` reuses an existing Ota binary and installs only when one is missing when `source=explicit`
+  - `auto` installs the contract-declared Ota source when `source=contract`
   - `always` installs Ota before running, even when an Ota binary already exists
   - `never` requires Ota to already be available; use this after `ota-run/setup`
+- `source`
+  - `explicit` or `contract`
+  - default: `explicit`
+  - `explicit` keeps workflow-owned install truth through `ota-version`
+  - `contract` reads `agent.bootstrap.ota.source` from `ota.yaml` and supports structured `kind: version`, `kind: git_rev`, `kind: branch`, plus legacy shell inference
+- `contract-path`
+  - path to `ota.yaml` or a repo directory containing it when `source=contract`
+  - default: `ota.yaml`
 - `ota-version`
   - optional installer version such as `v1.0.1` or `1.0.1`
   - when set, the action installs that version through the official installer
+  - invalid when `source=contract`
   - prefer `ota-run/setup` for pinned installation in reusable workflows
 - `ota-bin`
   - Ota binary name or path
@@ -238,6 +269,7 @@ Copyable workflow files live in [examples/](./examples).
 - `receipt` is the better default for CI when you want archive-friendly, read-only reporting against a repo that is already ready or against a workflow that does not require a live run task.
 - `proof` is the right CI surface when the selected workflow only becomes ready after Ota starts and verifies a live runtime path.
 - `workflow` lets the action target a non-default repo workflow explicitly when the contract exposes more than one front door.
+- prefer `ota-run/setup` plus `install: never` for the canonical split, but use `source: contract` when this action intentionally owns installation by itself.
 - on pull request receipt runs, the action automatically restores the latest successful artifact named by `artifact-name` when no explicit baseline file is set.
 - receipt baseline mode is a two-step wrapper: the action captures the current receipt for archive continuity, then runs the compare output used for summaries, annotations, comments, and failure semantics.
 - `receipt` does not start workflow run tasks for you. Use `command: proof` when the selected workflow defines live surface readiness on a run task and CI needs Ota to start it, wait for readiness, and capture the canonical proof artifacts.

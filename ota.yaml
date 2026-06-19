@@ -124,8 +124,9 @@ agent:
   bootstrap:
     ota:
       note: Only install ota if it is missing and installation is approved.
-      sh: curl -fsSL https://dist.ota.run/install.sh | sh
-      powershell: irm https://dist.ota.run/install.ps1 | iex
+      source:
+        kind: git_rev
+        rev: 04fc9a6e62ac665b2c9d4af70896d9f06a46a4dd
   notes: |
     Treat Ota as the default workflow for this repository.
     Use `ota validate` to verify the repo contract.

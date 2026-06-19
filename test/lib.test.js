@@ -20,6 +20,8 @@
 //
 //   If you need additional information or have any questions, please email: os@ota.run
 
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -40,10 +42,13 @@ import {
   normalizeSummary,
   otaBinaryName,
   otaInstallDirectories,
+  parseSourceMode,
+  postInstallBinaryDirectories,
   proofArtifactPaths,
   prioritizeRuntimeNodePath,
   parseInstallMode,
   parseOtaPayload,
+  resolveBootstrapSourceFromContract,
   resolveOtaInstallPlan,
   selectPullRequestNumberForComment,
   topFinding
@@ -214,11 +219,19 @@ test("parseInstallMode defaults to auto and rejects unsupported values", () => {
   assert.throws(() => parseInstallMode("sometimes"), /unsupported install mode/);
 });
 
+test("parseSourceMode defaults to explicit and rejects unsupported values", () => {
+  assert.equal(parseSourceMode(""), "explicit");
+  assert.equal(parseSourceMode("explicit"), "explicit");
+  assert.equal(parseSourceMode("contract"), "contract");
+  assert.throws(() => parseSourceMode("repo"), /unsupported source mode/);
+});
+
 test("resolveOtaInstallPlan reuses existing binaries in auto mode", () => {
   assert.deepEqual(
     resolveOtaInstallPlan({
       installMode: "auto",
       requestedVersion: "",
+      requestedSource: null,
       preferredExisting: "/opt/ota/bin/ota",
       preferred: "ota"
     }),
@@ -231,6 +244,7 @@ test("resolveOtaInstallPlan installs when auto mode has no binary or a requested
     resolveOtaInstallPlan({
       installMode: "auto",
       requestedVersion: "",
+      requestedSource: null,
       preferredExisting: "",
       preferred: "ota"
     }),
@@ -241,6 +255,7 @@ test("resolveOtaInstallPlan installs when auto mode has no binary or a requested
     resolveOtaInstallPlan({
       installMode: "auto",
       requestedVersion: "v1.6.9",
+      requestedSource: { kind: "version", version: "v1.6.9" },
       preferredExisting: "/opt/ota/bin/ota",
       preferred: "ota"
     }),
@@ -253,6 +268,7 @@ test("resolveOtaInstallPlan keeps never mode fail closed", () => {
     resolveOtaInstallPlan({
       installMode: "never",
       requestedVersion: "",
+      requestedSource: null,
       preferredExisting: "/opt/ota/bin/ota",
       preferred: "ota"
     }),
@@ -263,6 +279,7 @@ test("resolveOtaInstallPlan keeps never mode fail closed", () => {
     resolveOtaInstallPlan({
       installMode: "never",
       requestedVersion: "",
+      requestedSource: null,
       preferredExisting: "",
       preferred: "ota"
     }).message,
@@ -273,11 +290,83 @@ test("resolveOtaInstallPlan keeps never mode fail closed", () => {
     resolveOtaInstallPlan({
       installMode: "never",
       requestedVersion: "v1.6.9",
+      requestedSource: { kind: "version", version: "v1.6.9" },
       preferredExisting: "/opt/ota/bin/ota",
       preferred: "ota"
     }).message,
     /ota-version requires install=auto or install=always/
   );
+});
+
+test("resolveOtaInstallPlan installs in auto mode for contract-owned git revisions", () => {
+  assert.deepEqual(
+    resolveOtaInstallPlan({
+      installMode: "auto",
+      requestedVersion: "",
+      requestedSource: { kind: "git_rev", rev: "756b2b982e42de1b09a76a6d53c59962a94c2a30" },
+      preferredExisting: "/opt/ota/bin/ota",
+      preferred: "ota"
+    }),
+    { action: "install" }
+  );
+});
+
+test("postInstallBinaryDirectories prefers OTA_BIN_DIR and PATH before static fallbacks", () => {
+  const directories = postInstallBinaryDirectories({
+    OTA_BIN_DIR: "/tmp/ota-bin",
+    HOME: "/tmp/home",
+    PATH: "/tmp/home/.cargo/bin:/usr/bin:/tmp/home/.local/bin"
+  }, "linux");
+  assert.deepEqual(directories, [
+    "/tmp/ota-bin",
+    "/tmp/home/.cargo/bin",
+    "/usr/bin",
+    "/tmp/home/.local/bin"
+  ]);
+});
+
+test("resolveBootstrapSourceFromContract reads structured git rev truth", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "ota-action-contract-"));
+  const contract = path.join(directory, "ota.yaml");
+  await fs.writeFile(contract, `version: 1
+project:
+  name: demo
+agent:
+  bootstrap:
+    ota:
+      source:
+        kind: git_rev
+        rev: 756b2b982e42de1b09a76a6d53c59962a94c2a30
+`);
+
+  const resolved = await resolveBootstrapSourceFromContract(directory, fs);
+  assert.deepEqual(resolved, {
+    contractPath: contract,
+    kind: "git_rev",
+    rev: "756b2b982e42de1b09a76a6d53c59962a94c2a30"
+  });
+  await fs.rm(directory, { recursive: true, force: true });
+});
+
+test("resolveBootstrapSourceFromContract infers legacy shell version truth", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "ota-action-contract-"));
+  const contract = path.join(directory, "ota.yaml");
+  await fs.writeFile(contract, `version: 1
+project:
+  name: demo
+agent:
+  bootstrap:
+    ota:
+      sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.20 sh
+`);
+
+  const resolved = await resolveBootstrapSourceFromContract(contract, fs);
+  assert.deepEqual(resolved, {
+    contractPath: contract,
+    kind: "version",
+    version: "v1.6.20"
+  });
+  await fs.rm(directory, { recursive: true, force: true });
 });
 
 test("normalizeOtaVersion prefixes semver values with v", () => {

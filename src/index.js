@@ -49,12 +49,14 @@ import {
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,
-  otaInstallDirectories,
+  postInstallBinaryDirectories,
   parseBoolean,
   parseInstallMode,
+  parseSourceMode,
   parseOtaPayload,
   parsePositiveInteger,
   proofArtifactPaths,
+  resolveBootstrapSourceFromContract,
   resolveOtaInstallPlan,
   runUrlFromEnv,
   selectPullRequestNumberForComment,
@@ -199,7 +201,7 @@ async function resolveExistingBinary(bin, env = process.env, platform = process.
   return null;
 }
 
-async function installOta(version, cwd) {
+async function installOta(source, cwd) {
   const env = { ...process.env };
   if (!env.OTA_BIN_DIR) {
     const installerBinDir = path.resolve(cwd, ".ota", "bin");
@@ -207,14 +209,29 @@ async function installOta(version, cwd) {
     process.env.OTA_BIN_DIR = installerBinDir;
     core.info(`Using OTA installer directory ${installerBinDir}`);
   }
-  if (version) {
-    env.OTA_VERSION = version;
+  delete env.OTA_VERSION;
+  delete env.OTA_GIT_REV;
+  delete env.OTA_GIT_BRANCH;
+
+  let fromGit = false;
+  if (source?.kind === "version" && source.version) {
+    env.OTA_VERSION = source.version;
+  } else if (source?.kind === "git_rev" && source.rev) {
+    env.OTA_GIT_REV = source.rev;
+    fromGit = true;
+  } else if (source?.kind === "branch" && source.branch) {
+    env.OTA_GIT_BRANCH = source.branch;
+    fromGit = true;
   }
 
   if (process.platform === "win32") {
     const escapedBinDir = env.OTA_BIN_DIR.replace(/'/g, "''");
-    const escapedVersion = (version || "").replace(/'/g, "''");
-    const command = `$env:OTA_BIN_DIR='${escapedBinDir}'; $env:OTA_VERSION='${escapedVersion}'; irm https://dist.ota.run/install.ps1 | iex`;
+    const escapedVersion = (env.OTA_VERSION || "").replace(/'/g, "''");
+    const escapedRev = (env.OTA_GIT_REV || "").replace(/'/g, "''");
+    const escapedBranch = (env.OTA_GIT_BRANCH || "").replace(/'/g, "''");
+    const command = fromGit
+      ? `$env:OTA_BIN_DIR='${escapedBinDir}'; $env:OTA_GIT_REV='${escapedRev}'; $env:OTA_GIT_BRANCH='${escapedBranch}'; & ([scriptblock]::Create((irm https://dist.ota.run/install.ps1))) -FromGit`
+      : `$env:OTA_BIN_DIR='${escapedBinDir}'; $env:OTA_VERSION='${escapedVersion}'; irm https://dist.ota.run/install.ps1 | iex`;
     return await runCommand(
       "pwsh",
       ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
@@ -225,7 +242,7 @@ async function installOta(version, cwd) {
 
   return await runCommand(
     "sh",
-    ["-c", "curl -fsSL https://dist.ota.run/install.sh | sh"],
+    ["-c", fromGit ? "curl -fsSL https://dist.ota.run/install.sh | sh -s -- --from-git" : "curl -fsSL https://dist.ota.run/install.sh | sh"],
     cwd,
     env
   );
@@ -237,9 +254,11 @@ async function ensureOtaBinary(inputs, cwd) {
   const preferred = normalizeOtaBinInput(inputs.otaBin, cwd);
   const binaryName = otaBinaryName();
   const preferredExisting = await resolveExistingBinary(preferred);
+  const requestedSource = inputs.installSource || (requestedVersion ? { kind: "version", version: requestedVersion } : null);
   const installPlan = resolveOtaInstallPlan({
     installMode,
     requestedVersion,
+    requestedSource,
     preferredExisting,
     preferred
   });
@@ -253,11 +272,16 @@ async function ensureOtaBinary(inputs, cwd) {
     return installPlan.path;
   }
 
+  const installLabel = requestedSource?.kind === "git_rev"
+    ? `git revision ${requestedSource.rev}`
+    : requestedSource?.kind === "branch"
+      ? `branch ${requestedSource.branch}`
+      : requestedVersion || "latest";
   core.info(
-    `Installing ota ${requestedVersion || "latest"} via the official installer (${installMode} mode)`
+    `Installing ota ${installLabel} via the official installer (${installMode} mode)`
   );
 
-  const installResult = await installOta(requestedVersion, cwd);
+  const installResult = await installOta(requestedSource, cwd);
   if (installResult.stdout.trim()) {
     core.info(installResult.stdout.trim());
   }
@@ -276,19 +300,19 @@ async function ensureOtaBinary(inputs, cwd) {
     }
   }
 
-  const installDirectories = otaInstallDirectories();
-  core.debug(`Searching for ota binary in: ${installDirectories.join(", ")}`);
-
-  for (const directory of installDirectories) {
-    const candidate = path.join(directory, binaryName);
-    core.debug(`Checking candidate: ${candidate}`);
-    try {
-      await fs.access(candidate, fsSync.constants.F_OK);
-      core.addPath(directory);
-      core.info(`Using ota binary at ${candidate}`);
-      return candidate;
-    } catch {
-      continue;
+  const binaryNames = [...new Set([preferred, binaryName].filter((value) => value && !isPathLike(value)))];
+  for (const directory of postInstallBinaryDirectories()) {
+    for (const name of binaryNames) {
+      const candidate = path.join(directory, name);
+      core.debug(`Checking candidate: ${candidate}`);
+      try {
+        await fs.access(candidate, fsSync.constants.F_OK);
+        core.addPath(directory);
+        core.info(`Using ota binary at ${candidate}`);
+        return candidate;
+      } catch {
+        continue;
+      }
     }
   }
 
@@ -581,6 +605,8 @@ async function main() {
     artifactRetentionDays: core.getInput("artifact-retention-days"),
     failOnError: core.getInput("fail-on-error"),
     install: core.getInput("install") || "auto",
+    source: core.getInput("source") || "explicit",
+    contractPath: core.getInput("contract-path"),
     otaVersion: core.getInput("ota-version"),
     otaBin: core.getInput("ota-bin") || "ota",
     outputPath: core.getInput("output-path") || ".ota-action-output.json",
@@ -591,8 +617,17 @@ async function main() {
     throw new Error("baseline is only supported when command=receipt");
   }
 
+  const sourceMode = parseSourceMode(inputs.source);
+  if (sourceMode === "contract" && inputs.otaVersion.trim()) {
+    throw new Error("ota-version cannot be set when source=contract; derive install truth from agent.bootstrap.ota.source instead");
+  }
+
   const cwd = path.resolve(inputs.workingDirectory);
   const outputPath = path.resolve(cwd, inputs.outputPath);
+  if (sourceMode === "contract") {
+    inputs.installSource = await resolveBootstrapSourceFromContract(inputs.contractPath || "ota.yaml", fs);
+    inputs.otaVersion = inputs.installSource.kind === "version" ? inputs.installSource.version : "";
+  }
   const otaBinary = await ensureOtaBinary(inputs, cwd);
   const token = inputs.githubToken || process.env.GITHUB_TOKEN;
   let baselinePath = normalizeBaselineInput(inputs.baseline, cwd);

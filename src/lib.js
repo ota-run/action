@@ -24,6 +24,22 @@ import path from "node:path";
 
 const COMMENT_MARKER = "<!-- ota-action -->";
 
+function getEnvValue(env, key) {
+  const direct = env[key];
+  if (direct !== undefined) {
+    return direct;
+  }
+
+  const normalizedKey = String(key).toLowerCase();
+  for (const candidateKey of Object.keys(env)) {
+    if (candidateKey.toLowerCase() === normalizedKey) {
+      return env[candidateKey];
+    }
+  }
+
+  return undefined;
+}
+
 function parseBoolean(value, defaultValue) {
   if (value === undefined || value === null || value === "") {
     return defaultValue;
@@ -47,9 +63,173 @@ function parseInstallMode(value) {
   return mode;
 }
 
+function parseSourceMode(value) {
+  const mode = String(value ?? "explicit").trim().toLowerCase() || "explicit";
+  if (mode !== "explicit" && mode !== "contract") {
+    throw new Error(`unsupported source mode: ${mode}`);
+  }
+  return mode;
+}
+
+function stripWrappingQuotes(value) {
+  const text = String(value ?? "");
+  if ((text.startsWith("\"") && text.endsWith("\"")) || (text.startsWith("'") && text.endsWith("'"))) {
+    return text.slice(1, -1);
+  }
+  return text;
+}
+
+function stripInlineComment(value) {
+  let out = "";
+  let inSingle = false;
+  let inDouble = false;
+  let prev = "";
+
+  for (const ch of String(value ?? "")) {
+    if (ch === "\"" && !inSingle && prev !== "\\") {
+      inDouble = !inDouble;
+    } else if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+    } else if (ch === "#" && !inSingle && !inDouble) {
+      break;
+    }
+    out += ch;
+    prev = ch;
+  }
+
+  return out.trim();
+}
+
+function parseTargetedYamlFields(text, fieldPaths) {
+  const targetSet = new Set(fieldPaths);
+  const values = new Map();
+  const keys = [];
+  const indents = [];
+
+  for (const rawLine of String(text ?? "").split(/\r?\n/)) {
+    if (!rawLine.trim() || rawLine.trimStart().startsWith("#")) {
+      continue;
+    }
+
+    let indent = 0;
+    while (indent < rawLine.length && rawLine[indent] === " ") {
+      indent += 1;
+    }
+
+    const trimmed = rawLine.slice(indent);
+    const colonIndex = trimmed.indexOf(":");
+    if (colonIndex === -1) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, colonIndex).trim();
+    if (!key || key.startsWith("#") || key.startsWith("-")) {
+      continue;
+    }
+
+    const rawValue = stripInlineComment(trimmed.slice(colonIndex + 1));
+
+    while (indents.length > 0 && indents[indents.length - 1] >= indent) {
+      indents.pop();
+      keys.pop();
+    }
+
+    indents.push(indent);
+    keys.push(key);
+
+    if (!rawValue) {
+      continue;
+    }
+
+    const fieldPath = keys.join(".");
+    if (targetSet.has(fieldPath)) {
+      values.set(fieldPath, stripWrappingQuotes(rawValue));
+    }
+  }
+
+  return values;
+}
+
+function inferBootstrapSourceFromCommand(command) {
+  const text = String(command ?? "");
+  const matchers = [
+    { kind: "branch", patterns: ["OTA_GIT_BRANCH", "\\$env:OTA_GIT_BRANCH"] },
+    { kind: "git_rev", patterns: ["OTA_GIT_REV", "\\$env:OTA_GIT_REV"] },
+    { kind: "version", patterns: ["OTA_VERSION", "\\$env:OTA_VERSION"] }
+  ];
+
+  for (const matcher of matchers) {
+    for (const pattern of matcher.patterns) {
+      const regex = new RegExp(`${pattern}\\s*=\\s*['"]?([^'"\\s;|]+)['"]?`);
+      const match = text.match(regex);
+      if (match) {
+        return { kind: matcher.kind, value: match[1] };
+      }
+    }
+  }
+
+  return null;
+}
+
+async function resolveBootstrapSourceFromContract(contractPath, fsModule) {
+  const stat = await fsModule.stat(contractPath).catch(() => null);
+  let resolvedPath = contractPath;
+  if (stat?.isDirectory()) {
+    resolvedPath = path.join(contractPath, "ota.yaml");
+  }
+
+  const contract = await fsModule.readFile(resolvedPath, "utf8").catch((error) => {
+    throw new Error(`failed to read contract \`${contractPath}\`: ${error.message}`);
+  });
+
+  const values = parseTargetedYamlFields(contract, [
+    "agent.bootstrap.ota.source.kind",
+    "agent.bootstrap.ota.source.version",
+    "agent.bootstrap.ota.source.rev",
+    "agent.bootstrap.ota.source.branch",
+    "agent.bootstrap.ota.sh",
+    "agent.bootstrap.ota.powershell"
+  ]);
+
+  let kind = values.get("agent.bootstrap.ota.source.kind") || "";
+  let version = values.get("agent.bootstrap.ota.source.version") || "";
+  let rev = values.get("agent.bootstrap.ota.source.rev") || "";
+  let branch = values.get("agent.bootstrap.ota.source.branch") || "";
+
+  if (!kind) {
+    const inferred = inferBootstrapSourceFromCommand(values.get("agent.bootstrap.ota.sh"))
+      || inferBootstrapSourceFromCommand(values.get("agent.bootstrap.ota.powershell"));
+    if (inferred) {
+      kind = inferred.kind;
+      if (kind === "version") {
+        version = inferred.value;
+      } else if (kind === "git_rev") {
+        rev = inferred.value;
+      } else if (kind === "branch") {
+        branch = inferred.value;
+      }
+    }
+  }
+
+  if (kind === "version" && version) {
+    return { contractPath: resolvedPath, kind, version: normalizeOtaVersion(version) };
+  }
+  if (kind === "git_rev" && rev) {
+    return { contractPath: resolvedPath, kind, rev };
+  }
+  if (kind === "branch" && branch) {
+    return { contractPath: resolvedPath, kind, branch };
+  }
+
+  throw new Error(
+    `contract \`${resolvedPath}\` does not declare a usable agent.bootstrap.ota source`
+  );
+}
+
 function resolveOtaInstallPlan({
   installMode,
   requestedVersion,
+  requestedSource,
   preferredExisting,
   preferred
 }) {
@@ -69,7 +249,7 @@ function resolveOtaInstallPlan({
     };
   }
 
-  if (installMode === "auto" && preferredExisting && !requestedVersion) {
+  if (installMode === "auto" && preferredExisting && !requestedVersion && !requestedSource) {
     return { action: "use-existing", path: preferredExisting };
   }
 
@@ -112,18 +292,50 @@ function otaBinaryName(platform = process.platform) {
 function otaInstallDirectories(env = process.env, platform = process.platform) {
   const pathApi = platform === "win32" ? path.win32 : path.posix;
   const directories = [];
-  if (env.OTA_BIN_DIR) {
-    directories.push(env.OTA_BIN_DIR);
+  const otaBinDir = getEnvValue(env, "OTA_BIN_DIR");
+  if (otaBinDir) {
+    directories.push(otaBinDir);
   }
-  if (platform === "win32" && env.LOCALAPPDATA) {
-    directories.push(pathApi.join(env.LOCALAPPDATA, "ota", "bin"));
+  const localAppData = getEnvValue(env, "LOCALAPPDATA");
+  if (platform === "win32" && localAppData) {
+    directories.push(pathApi.join(localAppData, "ota", "bin"));
   }
-  const home = env.HOME || (platform === "win32" ? env.USERPROFILE : "");
+  const home = getEnvValue(env, "HOME") || (platform === "win32" ? getEnvValue(env, "USERPROFILE") : "");
   if (home) {
     directories.push(pathApi.join(home, ".local", "bin"));
     directories.push(pathApi.join(home, ".cargo", "bin"));
   }
   return [...new Set(directories)];
+}
+
+function postInstallBinaryDirectories(env = process.env, platform = process.platform) {
+  const directories = [];
+  const push = (value) => {
+    const normalized = String(value ?? "").trim();
+    if (!normalized || directories.includes(normalized)) {
+      return;
+    }
+    directories.push(normalized);
+  };
+
+  const otaBinDir = getEnvValue(env, "OTA_BIN_DIR");
+  if (otaBinDir) {
+    push(otaBinDir);
+  }
+
+  const delimiter = platform === "win32" ? path.win32.delimiter : path.posix.delimiter;
+  for (const entry of String(getEnvValue(env, "PATH") || "")
+    .split(delimiter)
+    .map((candidate) => candidate.trim())
+    .filter(Boolean)) {
+    push(entry);
+  }
+
+  for (const directory of otaInstallDirectories(env, platform)) {
+    push(directory);
+  }
+
+  return directories;
 }
 
 function buildOtaArgs(inputs) {
@@ -767,11 +979,13 @@ export {
   inferKind,
   normalizeArchivePath,
   normalizeOtaBinInput,
+  parseSourceMode,
   prioritizeRuntimeNodePath,
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,
   otaInstallDirectories,
+  postInstallBinaryDirectories,
   parseBoolean,
   defaultBaselineArtifactName,
   parseInstallMode,
@@ -779,6 +993,7 @@ export {
   parsePositiveInteger,
   proofArtifactPaths,
   pushBaselineProvenanceLines,
+  resolveBootstrapSourceFromContract,
   resolveOtaInstallPlan,
   runUrlFromEnv,
   selectPullRequestNumberForComment,

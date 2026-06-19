@@ -42,7 +42,7 @@ jobs:
       - name: Setup ota
         uses: ota-run/setup@v1
         with:
-          ota-version: 1.6.9
+          source: contract
 
       - name: Validate contract
         run: ota validate
@@ -82,6 +82,10 @@ jobs:
           project:
             name: smoke
             type: application
+          agent:
+            bootstrap:
+              ota:
+                sh: curl -fsSL https://dist.ota.run/install.sh | OTA_VERSION=v1.6.20 sh
           tasks:
             noop:
               description: No-op smoke task
@@ -93,6 +97,8 @@ jobs:
         with:
           command: doctor
           path: .github/fixtures/smoke
+          source: contract
+          contract-path: .github/fixtures/smoke/ota.yaml
           annotate: false
           artifact-name: ota-smoke-${{ matrix.os }}
 
