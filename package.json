@@ -1,6 +1,6 @@
 {
   "name": "@ota-run/action",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "private": true,
   "description": "Official GitHub Action for Ota",
   "type": "module",
