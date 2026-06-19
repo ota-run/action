@@ -30,6 +30,8 @@ jobs:
   repo:
     name: repo verification
     runs-on: ubuntu-latest
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - uses: actions/checkout@v5
 
