@@ -125,8 +125,8 @@ agent:
     ota:
       note: Only install ota if it is missing and installation is approved.
       source:
-        kind: git_rev
-        rev: 04fc9a6e62ac665b2c9d4af70896d9f06a46a4dd
+        kind: branch
+        branch: 1.6.21-implementation
   notes: |
     Treat Ota as the default workflow for this repository.
     Use `ota validate` to verify the repo contract.
