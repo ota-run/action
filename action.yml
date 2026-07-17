@@ -86,7 +86,7 @@ inputs:
     required: false
     default: "true"
   fail-on-ci-drift:
-    description: Fail the action when `ota doctor` reports contract-to-CI workflow drift.
+    description: Fail the action when `ota doctor` reports contract-to-CI workflow drift. With `fail-on-error: false`, annotations include only CI drift findings.
     required: false
     default: "false"
   install:

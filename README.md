@@ -124,6 +124,10 @@ This consumes Ota's existing `governance.merge_gate` and CI drift findings. It d
 ordinary Doctor warnings into failures. Repositories without contract-owned CI verification truth
 remain unblocked until Ota has evidence of actual workflow drift.
 
+Set `fail-on-error: false` for a dedicated drift-only job. In that mode, the Action emits
+annotations only for CI drift findings, so unrelated readiness debt does not look like a failed
+drift gate.
+
 ## Standalone Contract-Owned Install
 
 Use this when you intentionally skip `ota-run/setup` but still want the job to honor the repo's

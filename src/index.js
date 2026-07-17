@@ -831,7 +831,10 @@ async function main() {
 
   if (parseBoolean(inputs.annotate, true)) {
     const maxAnnotations = parsePositiveInteger(inputs.maxAnnotations, 20);
-    if (annotationMode === "doctor") {
+    const ciWorkflowDriftOnly = ciWorkflowDriftGate.enabled
+      && !parseBoolean(inputs.failOnError, true);
+    const annotationFindings = findingsForAnnotations(payload, kind, { ciWorkflowDriftOnly });
+    if (annotationMode === "doctor" && !ciWorkflowDriftOnly) {
       try {
         const rendered = await renderOtaAnnotations(otaBinary, cwd, annotationMode, "github", outputPath);
         const lines = rendered.split(/\r?\n/).filter(Boolean).slice(0, maxAnnotations);
@@ -842,7 +845,7 @@ async function main() {
         core.warning(
           `failed to render canonical ota annotations github output; falling back to bundled action annotations: ${error instanceof Error ? error.message : String(error)}`
         );
-        for (const finding of findingsForAnnotations(payload, kind).slice(0, maxAnnotations)) {
+        for (const finding of annotationFindings.slice(0, maxAnnotations)) {
           const method = annotationMethod(finding.severity);
           const message = [finding.why, finding.next ? `Next: ${finding.next}` : ""]
             .filter(Boolean)
@@ -851,7 +854,7 @@ async function main() {
         }
       }
     } else {
-      for (const finding of findingsForAnnotations(payload, kind).slice(0, maxAnnotations)) {
+      for (const finding of annotationFindings.slice(0, maxAnnotations)) {
         const method = annotationMethod(finding.severity);
         const message = [finding.why, finding.next ? `Next: ${finding.next}` : ""]
           .filter(Boolean)

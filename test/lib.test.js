@@ -532,6 +532,21 @@ test("ciWorkflowDrift ignores ordinary doctor warnings", () => {
   });
 });
 
+test("drift-only annotations exclude unrelated doctor findings", () => {
+  const payload = parseOtaPayload(JSON.stringify({
+    ok: false,
+    findings: [
+      { code: "OTA_WORKFLOW_SURFACE_READINESS_FAILED", severity: "error" },
+      { code: "OTA_CI_VERIFICATION_DRIFT", severity: "warn" }
+    ]
+  }));
+
+  assert.deepEqual(
+    findingsForAnnotations(payload, "doctor", { ciWorkflowDriftOnly: true }),
+    [{ code: "OTA_CI_VERIFICATION_DRIFT", severity: "warn" }]
+  );
+});
+
 test("summary markdown explains when no baseline artifact was restored", () => {
   const payload = parseOtaPayload(JSON.stringify({
     ok: true,

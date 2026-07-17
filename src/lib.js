@@ -656,7 +656,7 @@ function annotationMethod(severity) {
   }
 }
 
-function findingsForAnnotations(payload, kind) {
+function findingsForAnnotations(payload, kind, { ciWorkflowDriftOnly = false } = {}) {
   if (kind === "validate_failure") {
     const messages = [];
     if (payload.error) {
@@ -681,7 +681,12 @@ function findingsForAnnotations(payload, kind) {
     return [];
   }
 
-  return Array.isArray(payload.findings) ? payload.findings : [];
+  const findings = Array.isArray(payload.findings) ? payload.findings : [];
+  if (!ciWorkflowDriftOnly) {
+    return findings;
+  }
+
+  return findings.filter((finding) => CI_WORKFLOW_DRIFT_CODES.has(finding?.code));
 }
 
 function artifactFiles(outputPath, archivePath) {

@@ -26,6 +26,9 @@
 
 ## Unreleased
 
+- drift-only gates now annotate only contract-to-CI drift findings when `fail-on-error: false`,
+  keeping unrelated Doctor readiness findings out of a passing gate.
+
 - added `fail-on-ci-drift` to `ota-run/action`, an opt-in `command: doctor` gate that fails only
   when Ota's canonical merge-gate or CI verification/bootstrap drift evidence establishes
   contract-to-workflow drift; the action now publishes `ci-drift-detected` and includes a
