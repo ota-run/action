@@ -28,7 +28,7 @@ project:
 execution:
   preferred: native
 runtimes:
-  node: "24"
+  node: ">=24"
 tools:
   npm: "11"
 tasks:
