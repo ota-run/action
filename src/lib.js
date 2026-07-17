@@ -25,6 +25,7 @@ import path from "node:path";
 const COMMENT_MARKER = "<!-- ota-action -->";
 const CI_WORKFLOW_DRIFT_CODES = new Set([
   "OTA_CI_BOOTSTRAP_TRUTH_DRIFT",
+  "OTA_CI_BOOTSTRAP_TRUTH_DUPLICATED",
   "OTA_CI_VERIFICATION_DRIFT",
   "OTA_CI_VERIFICATION_REMOVED"
 ]);

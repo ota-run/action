@@ -497,6 +497,22 @@ test("ciWorkflowDrift recognizes canonical merge-gate and CI drift evidence", ()
   });
 });
 
+test("ciWorkflowDrift recognizes duplicated CI bootstrap truth", () => {
+  const payload = parseOtaPayload(JSON.stringify({
+    ok: true,
+    findings: [{
+      code: "OTA_CI_BOOTSTRAP_TRUTH_DUPLICATED",
+      severity: "warn"
+    }]
+  }));
+
+  assert.deepEqual(ciWorkflowDrift(payload), {
+    detected: true,
+    mergeGateState: "",
+    findingCodes: ["OTA_CI_BOOTSTRAP_TRUTH_DUPLICATED"]
+  });
+});
+
 test("ciWorkflowDrift ignores ordinary doctor warnings", () => {
   const payload = parseOtaPayload(JSON.stringify({
     ok: true,
