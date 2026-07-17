@@ -129745,6 +129745,11 @@ const client = new DefaultArtifactClient();
 
 
 const COMMENT_MARKER = "<!-- ota-action -->";
+const CI_WORKFLOW_DRIFT_CODES = new Set([
+  "OTA_CI_BOOTSTRAP_TRUTH_DRIFT",
+  "OTA_CI_VERIFICATION_DRIFT",
+  "OTA_CI_VERIFICATION_REMOVED"
+]);
 
 function getEnvValue(env, key) {
   const direct = env[key];
@@ -130263,6 +130268,20 @@ function deriveStatus(kind, summary) {
   }
 }
 
+function ciWorkflowDrift(payload) {
+  const findings = Array.isArray(payload?.findings) ? payload.findings : [];
+  const findingCodes = findings
+    .map((finding) => finding?.code)
+    .filter((code) => CI_WORKFLOW_DRIFT_CODES.has(code));
+  const mergeGateState = payload?.governance?.merge_gate?.state || "";
+
+  return {
+    detected: mergeGateState === "drift_detected" || findingCodes.length > 0,
+    mergeGateState,
+    findingCodes
+  };
+}
+
 function topFinding(payload, kind) {
   if (kind === "validate_failure") {
     return normalizeSummary(payload, kind).primaryBlocker;
@@ -130561,7 +130580,8 @@ function buildSummaryMarkdown({
   outputPath,
   runUrl,
   baselineInfo,
-  proofArtifacts
+  proofArtifacts,
+  ciWorkflowDriftGate
 }) {
   const lines = [];
   lines.push("## Ota");
@@ -130605,6 +130625,19 @@ function buildSummaryMarkdown({
     lines.push(`- Current receipt: **${payload.current?.ok ? "READY" : "NOT READY"}**`);
     lines.push(`- Diff: introduced ${summary.introduced.count}, resolved ${summary.resolved.count}, unchanged ${summary.unchanged.count}`);
     pushBaselineProvenanceLines(lines, payload.baseline);
+  }
+
+  if (ciWorkflowDriftGate?.enabled) {
+    lines.push("");
+    lines.push("### CI workflow drift gate");
+    lines.push("");
+    lines.push(`- Result: **${ciWorkflowDriftGate.detected ? "BLOCKED" : "PASSED"}**`);
+    if (ciWorkflowDriftGate.mergeGateState) {
+      lines.push(`- Merge gate: \`${ciWorkflowDriftGate.mergeGateState}\``);
+    }
+    if (ciWorkflowDriftGate.findingCodes.length > 0) {
+      lines.push(`- Findings: ${ciWorkflowDriftGate.findingCodes.map((code) => `\`${code}\``).join(", ")}`);
+    }
   }
 
   const primary = topFinding(payload, kind);
@@ -130652,7 +130685,8 @@ function appendActionReferencesMarkdown(summaryMarkdown, {
   runUrl,
   baselineInfo,
   kind,
-  proofArtifacts
+  proofArtifacts,
+  ciWorkflowDriftGate
 }) {
   const lines = [summaryMarkdown.trimEnd(), "", "### Action references", ""];
   lines.push(`- Command: \`${commandLine}\``);
@@ -130678,6 +130712,9 @@ function appendActionReferencesMarkdown(summaryMarkdown, {
     } else {
       lines.push(`- Baseline restore: none from \`${baselineInfo.artifactName}\`; current receipt only`);
     }
+  }
+  if (ciWorkflowDriftGate?.enabled) {
+    lines.push(`- CI workflow drift gate: **${ciWorkflowDriftGate.detected ? "BLOCKED" : "PASSED"}**`);
   }
   return lines.join("\n");
 }
@@ -131263,6 +131300,7 @@ async function main() {
     artifactName: getInput("artifact-name") || "ota-readiness",
     artifactRetentionDays: getInput("artifact-retention-days"),
     failOnError: getInput("fail-on-error"),
+    failOnCiDrift: getInput("fail-on-ci-drift"),
     install: getInput("install") || "auto",
     source: getInput("source") || "explicit",
     contractPath: getInput("contract-path"),
@@ -131274,6 +131312,9 @@ async function main() {
 
   if (inputs.command !== "receipt" && inputs.baseline) {
     throw new Error("baseline is only supported when command=receipt");
+  }
+  if (parseBoolean(inputs.failOnCiDrift, false) && inputs.command !== "doctor") {
+    throw new Error("fail-on-ci-drift requires command=doctor");
   }
 
   const sourceMode = parseSourceMode(inputs.source);
@@ -131430,6 +131471,11 @@ async function main() {
   const kind = inferKind(payload);
   const summary = normalizeSummary(payload, kind);
   const status = deriveStatus(kind, summary);
+  const ciDrift = ciWorkflowDrift(payload);
+  const ciWorkflowDriftGate = {
+    enabled: parseBoolean(inputs.failOnCiDrift, false),
+    ...ciDrift
+  };
   const runUrl = runUrlFromEnv(process.env);
   const artifactName = inputs.artifactName;
   const annotationMode = annotationModeForKind(kind);
@@ -131451,7 +131497,8 @@ async function main() {
       outputPath,
       runUrl,
       baselineInfo,
-      proofArtifacts
+      proofArtifacts,
+      ciWorkflowDriftGate
     });
   let summaryMarkdown = fallbackSummaryMarkdown;
   if (annotationMode) {
@@ -131466,7 +131513,8 @@ async function main() {
           runUrl,
           baselineInfo,
           kind,
-          proofArtifacts
+          proofArtifacts,
+          ciWorkflowDriftGate
         }
       );
     } catch (error) {
@@ -131550,9 +131598,15 @@ async function main() {
   setOutput("info-count", String(summary.infoCount));
   setOutput("gate-rule", summary.gate?.rule || "");
   setOutput("gate-passed", summary.gate ? String(summary.gate.passed) : "");
+  setOutput("ci-drift-detected", String(ciDrift.detected));
   setOutput("primary-summary", primary?.summary || "");
 
-  if (parseBoolean(inputs.failOnError, true) && status === "blocked") {
+  if (ciWorkflowDriftGate.enabled && ciWorkflowDriftGate.detected) {
+    const detail = ciDrift.findingCodes.length > 0
+      ? `: ${ciDrift.findingCodes.join(", ")}`
+      : ": governance.merge_gate is drift_detected";
+    setFailed(`Ota detected CI workflow drift${detail}`);
+  } else if (parseBoolean(inputs.failOnError, true) && status === "blocked") {
     setFailed(primary?.summary || "Ota reported a blocked outcome");
   } else if (selectedResult.exitCode !== 0 && status !== "blocked") {
     setFailed(`Ota exited with code ${selectedResult.exitCode}`);

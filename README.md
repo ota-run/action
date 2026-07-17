@@ -106,6 +106,24 @@ This is the intended drop-in path:
 
 Use [examples/recommended-pr-gate.yml](./examples/recommended-pr-gate.yml) when you want the copyable workflow file directly.
 
+## Contract-to-CI Drift Gate
+
+Use this when a pull request must fail if Ota can establish that contract-owned verification lanes
+or contract-owned bootstrap truth have drifted from the GitHub workflow files:
+
+```yaml
+- uses: ota-run/action@v1
+  with:
+    command: doctor
+    source: contract
+    fail-on-ci-drift: true
+    github-token: ${{ github.token }}
+```
+
+This consumes Ota's existing `governance.merge_gate` and CI drift findings. It does not turn
+ordinary Doctor warnings into failures. Repositories without contract-owned CI verification truth
+remain unblocked until Ota has evidence of actual workflow drift.
+
 ## Standalone Contract-Owned Install
 
 Use this when you intentionally skip `ota-run/setup` but still want the job to honor the repo's
@@ -171,6 +189,7 @@ Copyable workflow files live in [examples/](./examples).
 - [pr-comment-and-annotations.yml](./examples/pr-comment-and-annotations.yml)
 - [pinned-ota-version.yml](./examples/pinned-ota-version.yml)
 - [self-hosted-preinstalled.yml](./examples/self-hosted-preinstalled.yml)
+- [contract-ci-drift-gate.yml](./examples/contract-ci-drift-gate.yml)
 
 ## Inputs
 
@@ -220,6 +239,10 @@ Copyable workflow files live in [examples/](./examples).
   - fail the action when the derived action status is `blocked`
   - default: `true`
   - baseline compare gates can report `risky` when baseline debt remains but no new blockers were introduced
+- `fail-on-ci-drift`
+  - when `true`, fails the action only when `ota doctor` reports contract-to-CI workflow drift
+  - default: `false`
+  - requires `command: doctor`
 - `install`
   - `auto`, `always`, or `never`
   - default: `auto`
@@ -262,6 +285,7 @@ Copyable workflow files live in [examples/](./examples).
 - `info-count`
 - `gate-rule`
 - `gate-passed`
+- `ci-drift-detected`
 - `primary-summary`
 
 ## Notes

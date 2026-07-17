@@ -23,6 +23,11 @@
 import path from "node:path";
 
 const COMMENT_MARKER = "<!-- ota-action -->";
+const CI_WORKFLOW_DRIFT_CODES = new Set([
+  "OTA_CI_BOOTSTRAP_TRUTH_DRIFT",
+  "OTA_CI_VERIFICATION_DRIFT",
+  "OTA_CI_VERIFICATION_REMOVED"
+]);
 
 function getEnvValue(env, key) {
   const direct = env[key];
@@ -541,6 +546,20 @@ function deriveStatus(kind, summary) {
   }
 }
 
+function ciWorkflowDrift(payload) {
+  const findings = Array.isArray(payload?.findings) ? payload.findings : [];
+  const findingCodes = findings
+    .map((finding) => finding?.code)
+    .filter((code) => CI_WORKFLOW_DRIFT_CODES.has(code));
+  const mergeGateState = payload?.governance?.merge_gate?.state || "";
+
+  return {
+    detected: mergeGateState === "drift_detected" || findingCodes.length > 0,
+    mergeGateState,
+    findingCodes
+  };
+}
+
 function topFinding(payload, kind) {
   if (kind === "validate_failure") {
     return normalizeSummary(payload, kind).primaryBlocker;
@@ -839,7 +858,8 @@ function buildSummaryMarkdown({
   outputPath,
   runUrl,
   baselineInfo,
-  proofArtifacts
+  proofArtifacts,
+  ciWorkflowDriftGate
 }) {
   const lines = [];
   lines.push("## Ota");
@@ -883,6 +903,19 @@ function buildSummaryMarkdown({
     lines.push(`- Current receipt: **${payload.current?.ok ? "READY" : "NOT READY"}**`);
     lines.push(`- Diff: introduced ${summary.introduced.count}, resolved ${summary.resolved.count}, unchanged ${summary.unchanged.count}`);
     pushBaselineProvenanceLines(lines, payload.baseline);
+  }
+
+  if (ciWorkflowDriftGate?.enabled) {
+    lines.push("");
+    lines.push("### CI workflow drift gate");
+    lines.push("");
+    lines.push(`- Result: **${ciWorkflowDriftGate.detected ? "BLOCKED" : "PASSED"}**`);
+    if (ciWorkflowDriftGate.mergeGateState) {
+      lines.push(`- Merge gate: \`${ciWorkflowDriftGate.mergeGateState}\``);
+    }
+    if (ciWorkflowDriftGate.findingCodes.length > 0) {
+      lines.push(`- Findings: ${ciWorkflowDriftGate.findingCodes.map((code) => `\`${code}\``).join(", ")}`);
+    }
   }
 
   const primary = topFinding(payload, kind);
@@ -930,7 +963,8 @@ function appendActionReferencesMarkdown(summaryMarkdown, {
   runUrl,
   baselineInfo,
   kind,
-  proofArtifacts
+  proofArtifacts,
+  ciWorkflowDriftGate
 }) {
   const lines = [summaryMarkdown.trimEnd(), "", "### Action references", ""];
   lines.push(`- Command: \`${commandLine}\``);
@@ -957,6 +991,9 @@ function appendActionReferencesMarkdown(summaryMarkdown, {
       lines.push(`- Baseline restore: none from \`${baselineInfo.artifactName}\`; current receipt only`);
     }
   }
+  if (ciWorkflowDriftGate?.enabled) {
+    lines.push(`- CI workflow drift gate: **${ciWorkflowDriftGate.detected ? "BLOCKED" : "PASSED"}**`);
+  }
   return lines.join("\n");
 }
 
@@ -973,6 +1010,7 @@ export {
   buildCommentBody,
   buildOtaArgs,
   buildSummaryMarkdown,
+  ciWorkflowDrift,
   commonRootDirectory,
   deriveStatus,
   findingsForAnnotations,

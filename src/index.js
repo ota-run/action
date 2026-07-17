@@ -37,6 +37,7 @@ import {
   buildCommentBody,
   buildOtaArgs,
   buildSummaryMarkdown,
+  ciWorkflowDrift,
   COMMENT_MARKER,
   commonRootDirectory,
   defaultBaselineArtifactName,
@@ -604,6 +605,7 @@ async function main() {
     artifactName: core.getInput("artifact-name") || "ota-readiness",
     artifactRetentionDays: core.getInput("artifact-retention-days"),
     failOnError: core.getInput("fail-on-error"),
+    failOnCiDrift: core.getInput("fail-on-ci-drift"),
     install: core.getInput("install") || "auto",
     source: core.getInput("source") || "explicit",
     contractPath: core.getInput("contract-path"),
@@ -615,6 +617,9 @@ async function main() {
 
   if (inputs.command !== "receipt" && inputs.baseline) {
     throw new Error("baseline is only supported when command=receipt");
+  }
+  if (parseBoolean(inputs.failOnCiDrift, false) && inputs.command !== "doctor") {
+    throw new Error("fail-on-ci-drift requires command=doctor");
   }
 
   const sourceMode = parseSourceMode(inputs.source);
@@ -771,6 +776,11 @@ async function main() {
   const kind = inferKind(payload);
   const summary = normalizeSummary(payload, kind);
   const status = deriveStatus(kind, summary);
+  const ciDrift = ciWorkflowDrift(payload);
+  const ciWorkflowDriftGate = {
+    enabled: parseBoolean(inputs.failOnCiDrift, false),
+    ...ciDrift
+  };
   const runUrl = runUrlFromEnv(process.env);
   const artifactName = inputs.artifactName;
   const annotationMode = annotationModeForKind(kind);
@@ -792,7 +802,8 @@ async function main() {
       outputPath,
       runUrl,
       baselineInfo,
-      proofArtifacts
+      proofArtifacts,
+      ciWorkflowDriftGate
     });
   let summaryMarkdown = fallbackSummaryMarkdown;
   if (annotationMode) {
@@ -807,7 +818,8 @@ async function main() {
           runUrl,
           baselineInfo,
           kind,
-          proofArtifacts
+          proofArtifacts,
+          ciWorkflowDriftGate
         }
       );
     } catch (error) {
@@ -891,9 +903,15 @@ async function main() {
   core.setOutput("info-count", String(summary.infoCount));
   core.setOutput("gate-rule", summary.gate?.rule || "");
   core.setOutput("gate-passed", summary.gate ? String(summary.gate.passed) : "");
+  core.setOutput("ci-drift-detected", String(ciDrift.detected));
   core.setOutput("primary-summary", primary?.summary || "");
 
-  if (parseBoolean(inputs.failOnError, true) && status === "blocked") {
+  if (ciWorkflowDriftGate.enabled && ciWorkflowDriftGate.detected) {
+    const detail = ciDrift.findingCodes.length > 0
+      ? `: ${ciDrift.findingCodes.join(", ")}`
+      : ": governance.merge_gate is drift_detected";
+    core.setFailed(`Ota detected CI workflow drift${detail}`);
+  } else if (parseBoolean(inputs.failOnError, true) && status === "blocked") {
     core.setFailed(primary?.summary || "Ota reported a blocked outcome");
   } else if (selectedResult.exitCode !== 0 && status !== "blocked") {
     core.setFailed(`Ota exited with code ${selectedResult.exitCode}`);

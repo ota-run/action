@@ -31,6 +31,7 @@ import {
   annotationModeForKind,
   buildOtaArgs,
   buildSummaryMarkdown,
+  ciWorkflowDrift,
   commonRootDirectory,
   defaultBaselineArtifactName,
   deriveStatus,
@@ -472,6 +473,47 @@ test("doctor payload derives risky status and blocker summary", () => {
   assert.match(markdown, /Review config/);
   assert.match(markdown, /### Next steps/);
   assert.match(markdown, /run ota detect --merge/);
+});
+
+test("ciWorkflowDrift recognizes canonical merge-gate and CI drift evidence", () => {
+  const payload = parseOtaPayload(JSON.stringify({
+    ok: true,
+    path: "/repo/ota.yaml",
+    mode: "native",
+    summary: { verdict: "risky" },
+    findings: [
+      { code: "OTA_CI_VERIFICATION_DRIFT" },
+      { code: "OTA_RUNTIME_VERSION_MISMATCH" }
+    ],
+    governance: {
+      merge_gate: { state: "drift_detected" }
+    }
+  }));
+
+  assert.deepEqual(ciWorkflowDrift(payload), {
+    detected: true,
+    mergeGateState: "drift_detected",
+    findingCodes: ["OTA_CI_VERIFICATION_DRIFT"]
+  });
+});
+
+test("ciWorkflowDrift ignores ordinary doctor warnings", () => {
+  const payload = parseOtaPayload(JSON.stringify({
+    ok: true,
+    path: "/repo/ota.yaml",
+    mode: "native",
+    summary: { verdict: "risky" },
+    findings: [{ code: "OTA_RUNTIME_VERSION_MISMATCH" }],
+    governance: {
+      merge_gate: { state: "projected" }
+    }
+  }));
+
+  assert.deepEqual(ciWorkflowDrift(payload), {
+    detected: false,
+    mergeGateState: "projected",
+    findingCodes: []
+  });
 });
 
 test("summary markdown explains when no baseline artifact was restored", () => {

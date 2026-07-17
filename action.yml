@@ -85,6 +85,10 @@ inputs:
     description: Fail the action when Ota reports a blocked outcome.
     required: false
     default: "true"
+  fail-on-ci-drift:
+    description: Fail the action when `ota doctor` reports contract-to-CI workflow drift.
+    required: false
+    default: "false"
   install:
     description: "Ota installation mode. Supported values: auto, always, never. Use never when ota-run/setup installed Ota earlier in the job."
     required: false
@@ -135,6 +139,8 @@ outputs:
     description: Diff gate rule when a receipt compare gate was active.
   gate-passed:
     description: Whether the diff gate passed when a receipt compare gate was active.
+  ci-drift-detected:
+    description: Whether Ota detected contract-to-CI workflow drift.
   primary-summary:
     description: Primary blocker or top finding summary.
 

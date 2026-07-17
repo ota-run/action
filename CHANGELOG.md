@@ -26,6 +26,10 @@
 
 ## Unreleased
 
+- added `fail-on-ci-drift` to `ota-run/action`, an opt-in `command: doctor` gate that fails only
+  when Ota's canonical merge-gate or CI verification/bootstrap drift evidence establishes
+  contract-to-workflow drift; the action now publishes `ci-drift-detected` and includes a
+  copy-ready required-check example
 - added contract-owned install truth to `ota-run/action`: it now supports `source: contract`
   plus `contract-path`, can read `agent.bootstrap.ota.source` from `ota.yaml`, and can install
   deterministic `version`, `git_rev`, `branch`, or inferred legacy shell truth instead of

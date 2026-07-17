@@ -38,6 +38,7 @@ inputs from the reference docs.
 - [contract-owned-install.yml](contract-owned-install.yml) - standalone action flow that installs ota from `agent.bootstrap.ota.source` without a separate setup step
 - [pinned-ota-version.yml](pinned-ota-version.yml) - same push-only action flow with an explicit `ota-run/setup` version
 - [self-hosted-preinstalled.yml](self-hosted-preinstalled.yml) - self-hosted runner flow that fails closed unless ota is already available
+- [contract-ci-drift-gate.yml](contract-ci-drift-gate.yml) - required pull-request check for contract-to-workflow drift
 
 ## Rule
 
