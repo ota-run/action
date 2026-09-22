@@ -130005,6 +130005,25 @@ function prioritizeRuntimeNodePath(env = process.env, runtimeExecPath = process.
   };
 }
 
+async function selectFirstRunnableExecutable(candidates, fallback, isRunnable) {
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const normalized = String(candidate || "").trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    try {
+      if (await isRunnable(normalized)) {
+        return normalized;
+      }
+    } catch {
+      // A failed probe is not a runnable PATH candidate; retain the next candidate or fallback.
+    }
+  }
+  return fallback;
+}
+
 function normalizeOtaVersion(value) {
   if (value === undefined || value === null || String(value).trim() === "") {
     return "";
@@ -130908,12 +130927,10 @@ function parseNodeMajorFromVersion(output) {
   return Number.parseInt(match[1], 10);
 }
 
-async function nodeVersionFromExecutable(executablePath, cwd, env = process.env) {
+async function isRunnableNodeExecutable(executablePath, cwd, env = process.env) {
   const result = await runCommand(executablePath, ["--version"], cwd, env);
-  if (result.exitCode !== 0) {
-    return null;
-  }
-  return parseNodeMajorFromVersion(`${result.stdout}\n${result.stderr}`);
+  return result.exitCode === 0
+    && parseNodeMajorFromVersion(`${result.stdout}\n${result.stderr}`) !== null;
 }
 
 async function resolvePreferredNodeExecutable(env = process.env, cwd = process.cwd()) {
@@ -130921,35 +130938,18 @@ async function resolvePreferredNodeExecutable(env = process.env, cwd = process.c
     return cachedNodeExecutablePath.value;
   }
 
-  const candidates = new Set();
-
   const candidateList = executableCandidates("node", env)
-    .filter((candidate) => external_node_path_.basename(candidate).toLowerCase().startsWith("node"));
-
-  for (const candidate of candidateList) {
-    candidates.add(external_node_path_.resolve(candidate));
-  }
-
-  if (process.execPath) {
-    candidates.add(external_node_path_.resolve(process.execPath));
-  }
-
-  let preferred = process.execPath;
-  let preferredMajor = parseNodeMajorFromVersion(process.version) ?? 0;
-
-  for (const candidate of candidates) {
-    try {
+    .filter((candidate) => external_node_path_.basename(candidate).toLowerCase().startsWith("node"))
+    .map((candidate) => external_node_path_.resolve(candidate));
+  const fallback = process.execPath ? external_node_path_.resolve(process.execPath) : "";
+  const preferred = await selectFirstRunnableExecutable(
+    candidateList,
+    fallback,
+    async (candidate) => {
       await promises_.access(candidate, external_node_fs_.constants.X_OK);
-    } catch {
-      continue;
+      return await isRunnableNodeExecutable(candidate, cwd, env);
     }
-
-    const version = await nodeVersionFromExecutable(candidate, cwd, env);
-    if (version !== null && version > preferredMajor) {
-      preferredMajor = version;
-      preferred = candidate;
-    }
-  }
+  );
 
   cachedNodeExecutablePath.value = preferred || process.execPath;
   debug(`Selected node executable for Ota invocations: ${cachedNodeExecutablePath.value}`);

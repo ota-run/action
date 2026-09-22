@@ -283,6 +283,25 @@ function prioritizeRuntimeNodePath(env = process.env, runtimeExecPath = process.
   };
 }
 
+async function selectFirstRunnableExecutable(candidates, fallback, isRunnable) {
+  const seen = new Set();
+  for (const candidate of candidates) {
+    const normalized = String(candidate || "").trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    try {
+      if (await isRunnable(normalized)) {
+        return normalized;
+      }
+    } catch {
+      // A failed probe is not a runnable PATH candidate; retain the next candidate or fallback.
+    }
+  }
+  return fallback;
+}
+
 function normalizeOtaVersion(value) {
   if (value === undefined || value === null || String(value).trim() === "") {
     return "";
@@ -1122,6 +1141,7 @@ export {
   normalizeOtaBinInput,
   parseSourceMode,
   prioritizeRuntimeNodePath,
+  selectFirstRunnableExecutable,
   normalizeOtaVersion,
   normalizeSummary,
   otaBinaryName,

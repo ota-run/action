@@ -70,7 +70,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 20
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -84,6 +84,8 @@ jobs:
           project:
             name: smoke
             type: application
+          runtimes:
+            node: ">=20,<21"
           agent:
             bootstrap:
               ota:
@@ -95,6 +97,7 @@ jobs:
           "@ | Set-Content -Path "$dir/ota.yaml" -Encoding utf8
 
       - name: Action smoke test
+        id: smoke
         uses: ./
         with:
           command: doctor
@@ -105,6 +108,22 @@ jobs:
           annotate: false
           comment-pr: false
           artifact-name: ota-smoke-${{ matrix.os }}
+
+      - name: Confirm Ota preserved the workflow-selected Node runtime
+        shell: bash
+        env:
+          OTA_SMOKE_OUTPUT: ${{ steps.smoke.outputs.output-path }}
+        run: |
+          test "$(node --version | cut -d. -f1)" = "v20"
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+
+          const payload = JSON.parse(fs.readFileSync(process.env.OTA_SMOKE_OUTPUT, "utf8"));
+          const codes = (payload.findings || []).map((finding) => finding.code);
+          if (codes.includes("OTA_RUNTIME_VERSION_MISMATCH")) {
+            throw new Error("Ota observed the Action runtime instead of the workflow-selected Node 20");
+          }
+          NODE
 
   release:
     name: auto release
