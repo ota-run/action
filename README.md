@@ -62,7 +62,8 @@ You can replace `patch` with `minor`, `major`, `prerelease`, or an explicit semv
 - writes a GitHub Actions step summary
 - emits GitHub annotations from Ota findings
 - posts or updates a sticky pull request comment by default
-- uploads the ota JSON output plus any archived receipt or runtime-proof artifacts as workflow artifacts
+- uploads the ota JSON output plus complete archived receipt closures (the receipt and its
+  referenced contract snapshot) or runtime-proof artifacts as workflow artifacts
 - formats summaries and sticky pull request comments around outcome, primary blocker or change, next steps, and receipt or baseline references
 
 ## Requirements

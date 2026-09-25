@@ -57,6 +57,8 @@ import {
   parseOtaPayload,
   parsePositiveInteger,
   proofArtifactPaths,
+  receiptArchiveClosureFiles,
+  receiptArchivePayloadForUpload,
   resolveBootstrapSourceFromContract,
   resolveOtaInstallPlan,
   runUrlFromEnv,
@@ -455,7 +457,7 @@ async function selectReceiptBaselineFile(root) {
   }
 
   const archived = candidates.find(({ file }) => file.includes(`${path.sep}.ota${path.sep}receipts${path.sep}`));
-  return archived?.file || candidates[0].file;
+  return archived || candidates[0];
 }
 
 async function restoreBaselineArtifact(artifactName, token, cwd) {
@@ -495,15 +497,25 @@ async function restoreBaselineArtifact(artifactName, token, cwd) {
 
   const downloadPath = await fs.mkdtemp(path.join(process.env.RUNNER_TEMP || cwd, "ota-baseline-"));
   await client.downloadArtifact(artifact.id, { path: downloadPath, findBy });
-  const baselinePath = await selectReceiptBaselineFile(downloadPath);
+  const baseline = await selectReceiptBaselineFile(downloadPath);
 
-  if (!baselinePath) {
+  if (!baseline) {
     core.notice(`Artifact \`${artifactName}\` from run ${workflowRunId} did not contain a reusable receipt baseline; running without a restored baseline`);
     return "";
   }
 
+  try {
+    await receiptArchiveClosureFiles(baseline.payload, downloadPath, fs);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    core.notice(
+      `Artifact \`${artifactName}\` from run ${workflowRunId} did not contain a reusable receipt closure: ${detail}; running without a restored baseline`
+    );
+    return "";
+  }
+
   core.info(`Using baseline receipt from artifact \`${artifactName}\` in successful ${workflowFile} run ${workflowRunId}`);
-  return baselinePath;
+  return baseline.file;
 }
 
 async function runOtaInvocation(otaBinary, inputs, cwd) {
@@ -666,6 +678,8 @@ async function main() {
   let commandLine;
   let selectedResult;
   let archivePath = "";
+  let archivedReceiptPayload;
+  let receiptArchiveDependencyFiles = [];
   let proofArtifactFiles = [];
 
   if (inputs.command === "receipt" && (baselinePath || effectiveBaselineArtifactName)) {
@@ -680,6 +694,7 @@ async function main() {
         cwd
       );
       const currentPayload = parseOtaPayload(currentRun.result.stdout);
+      archivedReceiptPayload = currentPayload;
       archivePath = normalizeArchivePath(
         typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
         cwd
@@ -716,6 +731,7 @@ async function main() {
           cwd
         );
         const currentPayload = parseOtaPayload(currentRun.result.stdout);
+        archivedReceiptPayload = currentPayload;
         archivePath = normalizeArchivePath(
           typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
           cwd
@@ -733,6 +749,7 @@ async function main() {
         cwd
       );
       const currentPayload = parseOtaPayload(currentRun.result.stdout);
+      archivedReceiptPayload = currentPayload;
       archivePath = normalizeArchivePath(
         typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
         cwd
@@ -751,6 +768,7 @@ async function main() {
         cwd
       );
       const currentPayload = parseOtaPayload(currentRun.result.stdout);
+      archivedReceiptPayload = currentPayload;
       archivePath = normalizeArchivePath(
         typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
         cwd
@@ -762,6 +780,7 @@ async function main() {
   } else {
     const run = await runOtaInvocation(otaBinary, inputs, cwd);
     payload = parseOtaPayload(run.result.stdout);
+    archivedReceiptPayload = payload;
     commandLine = run.commandLine;
     selectedResult = run.result;
     archivePath = normalizeArchivePath(
@@ -769,6 +788,11 @@ async function main() {
       cwd
     );
     proofArtifactFiles = proofArtifactPaths(payload, cwd);
+  }
+
+  const receiptArtifactPayload = receiptArchivePayloadForUpload(archivePath, archivedReceiptPayload);
+  if (receiptArtifactPayload) {
+    receiptArchiveDependencyFiles = await receiptArchiveClosureFiles(receiptArtifactPayload, cwd, fs);
   }
 
   await fs.writeFile(outputPath, selectedResult.stdout, "utf8");
@@ -866,7 +890,13 @@ async function main() {
 
   await core.summary.addRaw(summaryMarkdown, true).write();
 
-  const files = [...new Set([...artifactFiles(outputPath, archivePath), ...proofArtifactFiles])];
+  const files = [
+    ...new Set([
+      ...artifactFiles(outputPath, archivePath),
+      ...receiptArchiveDependencyFiles,
+      ...proofArtifactFiles
+    ])
+  ];
   const retentionDays = parsePositiveInteger(inputs.artifactRetentionDays, undefined);
   await uploadArtifacts(artifactName, files, retentionDays);
 

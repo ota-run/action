@@ -26,6 +26,10 @@
 
 ## Unreleased
 
+- preserve complete archived receipt closures in workflow artifacts by including every declared
+  local receipt artifact and refusing incomplete historical baselines before comparison; a fresh
+  current receipt is archived when no reusable baseline remains
+
 - drift-only gates now annotate only contract-to-CI drift findings when `fail-on-error: false`,
   keeping unrelated Doctor readiness findings out of a passing gate.
 

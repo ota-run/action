@@ -103,6 +103,7 @@ jobs:
           source: contract
           contract-path: ota.yaml
           annotate: false
+          comment-pr: false
           artifact-name: ota-smoke-${{ matrix.os }}
 
   release:

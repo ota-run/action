@@ -130419,6 +130419,103 @@ function artifactFiles(outputPath, archivePath) {
   return files;
 }
 
+function receiptArchiveClosurePaths(payload, cwd, pathModule = external_node_path_) {
+  if (!payload || payload.mode !== "receipt" || !payload.receipt) {
+    return [];
+  }
+
+  const snapshotRef = payload.receipt.contract_snapshot_ref;
+  if (typeof snapshotRef !== "string" || snapshotRef.trim() === "") {
+    throw new Error("archived receipt does not declare immutable `receipt.contract_snapshot_ref`");
+  }
+
+  const references = [snapshotRef];
+  for (const route of Array.isArray(payload.artifact_routing) ? payload.artifact_routing : []) {
+    if (route?.path === undefined || route.path === null || route.path === "") {
+      continue;
+    }
+    if (typeof route.path !== "string") {
+      throw new Error("receipt artifact route path must be a string");
+    }
+    references.push(route.path);
+  }
+
+  const root = pathModule.resolve(cwd);
+  const paths = [];
+  for (const reference of references) {
+    const resolved = pathModule.resolve(root, reference);
+    const relative = pathModule.relative(root, resolved);
+    if (
+      relative === ""
+      || relative === ".."
+      || relative.startsWith(`..${pathModule.sep}`)
+      || pathModule.isAbsolute(relative)
+    ) {
+      throw new Error(`receipt artifact path escapes the working directory: ${reference}`);
+    }
+    paths.push(resolved);
+  }
+
+  return [...new Set(paths)];
+}
+
+function receiptArchivePayloadForUpload(archivePath, payload) {
+  if (!archivePath) {
+    return null;
+  }
+  if (!payload || payload.mode !== "receipt") {
+    throw new Error("an archived receipt requires the current receipt payload");
+  }
+  return payload;
+}
+
+async function receiptArchiveClosureFiles(payload, cwd, fileSystem, pathModule = external_node_path_) {
+  if (typeof fileSystem?.lstat !== "function" || typeof fileSystem.realpath !== "function") {
+    throw new Error("receipt archive closure requires lstat and realpath functions");
+  }
+
+  const files = receiptArchiveClosurePaths(payload, cwd, pathModule);
+  const root = pathModule.resolve(cwd);
+  let canonicalRoot;
+  try {
+    canonicalRoot = await fileSystem.realpath(root);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`receipt archive root cannot be resolved \`${root}\`: ${detail}`);
+  }
+
+  for (const file of files) {
+    let metadata;
+    try {
+      metadata = await fileSystem.lstat(file);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`archived receipt closure is missing \`${file}\`: ${detail}`);
+    }
+    if (!metadata.isFile()) {
+      throw new Error(`archived receipt closure path is not a regular file: ${file}`);
+    }
+
+    let canonicalFile;
+    try {
+      canonicalFile = await fileSystem.realpath(file);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new Error(`archived receipt closure cannot be resolved \`${file}\`: ${detail}`);
+    }
+    const relative = pathModule.relative(canonicalRoot, canonicalFile);
+    if (
+      relative === ""
+      || relative === ".."
+      || relative.startsWith(`..${pathModule.sep}`)
+      || pathModule.isAbsolute(relative)
+    ) {
+      throw new Error(`receipt artifact path resolves outside the working directory: ${file}`);
+    }
+  }
+  return files;
+}
+
 function proofArtifactPaths(payload, cwd, pathModule = external_node_path_) {
   if (!payload || payload.mode !== "runtime-proof" || !payload.artifacts || typeof payload.artifacts !== "object") {
     return [];
@@ -131156,7 +131253,7 @@ async function selectReceiptBaselineFile(root) {
   }
 
   const archived = candidates.find(({ file }) => file.includes(`${external_node_path_.sep}.ota${external_node_path_.sep}receipts${external_node_path_.sep}`));
-  return archived?.file || candidates[0].file;
+  return archived || candidates[0];
 }
 
 async function restoreBaselineArtifact(artifactName, token, cwd) {
@@ -131196,15 +131293,25 @@ async function restoreBaselineArtifact(artifactName, token, cwd) {
 
   const downloadPath = await promises_.mkdtemp(external_node_path_.join(process.env.RUNNER_TEMP || cwd, "ota-baseline-"));
   await client.downloadArtifact(artifact.id, { path: downloadPath, findBy });
-  const baselinePath = await selectReceiptBaselineFile(downloadPath);
+  const baseline = await selectReceiptBaselineFile(downloadPath);
 
-  if (!baselinePath) {
+  if (!baseline) {
     notice(`Artifact \`${artifactName}\` from run ${workflowRunId} did not contain a reusable receipt baseline; running without a restored baseline`);
     return "";
   }
 
+  try {
+    await receiptArchiveClosureFiles(baseline.payload, downloadPath, promises_);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    notice(
+      `Artifact \`${artifactName}\` from run ${workflowRunId} did not contain a reusable receipt closure: ${detail}; running without a restored baseline`
+    );
+    return "";
+  }
+
   info(`Using baseline receipt from artifact \`${artifactName}\` in successful ${workflowFile} run ${workflowRunId}`);
-  return baselinePath;
+  return baseline.file;
 }
 
 async function runOtaInvocation(otaBinary, inputs, cwd) {
@@ -131367,6 +131474,8 @@ async function main() {
   let commandLine;
   let selectedResult;
   let archivePath = "";
+  let archivedReceiptPayload;
+  let receiptArchiveDependencyFiles = [];
   let proofArtifactFiles = [];
 
   if (inputs.command === "receipt" && (baselinePath || effectiveBaselineArtifactName)) {
@@ -131381,6 +131490,7 @@ async function main() {
         cwd
       );
       const currentPayload = parseOtaPayload(currentRun.result.stdout);
+      archivedReceiptPayload = currentPayload;
       archivePath = normalizeArchivePath(
         typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
         cwd
@@ -131417,6 +131527,7 @@ async function main() {
           cwd
         );
         const currentPayload = parseOtaPayload(currentRun.result.stdout);
+        archivedReceiptPayload = currentPayload;
         archivePath = normalizeArchivePath(
           typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
           cwd
@@ -131434,6 +131545,7 @@ async function main() {
         cwd
       );
       const currentPayload = parseOtaPayload(currentRun.result.stdout);
+      archivedReceiptPayload = currentPayload;
       archivePath = normalizeArchivePath(
         typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
         cwd
@@ -131452,6 +131564,7 @@ async function main() {
         cwd
       );
       const currentPayload = parseOtaPayload(currentRun.result.stdout);
+      archivedReceiptPayload = currentPayload;
       archivePath = normalizeArchivePath(
         typeof currentPayload.archive_path === "string" ? currentPayload.archive_path : "",
         cwd
@@ -131463,6 +131576,7 @@ async function main() {
   } else {
     const run = await runOtaInvocation(otaBinary, inputs, cwd);
     payload = parseOtaPayload(run.result.stdout);
+    archivedReceiptPayload = payload;
     commandLine = run.commandLine;
     selectedResult = run.result;
     archivePath = normalizeArchivePath(
@@ -131470,6 +131584,11 @@ async function main() {
       cwd
     );
     proofArtifactFiles = proofArtifactPaths(payload, cwd);
+  }
+
+  const receiptArtifactPayload = receiptArchivePayloadForUpload(archivePath, archivedReceiptPayload);
+  if (receiptArtifactPayload) {
+    receiptArchiveDependencyFiles = await receiptArchiveClosureFiles(receiptArtifactPayload, cwd, promises_);
   }
 
   await promises_.writeFile(outputPath, selectedResult.stdout, "utf8");
@@ -131567,7 +131686,13 @@ async function main() {
 
   await summary_summary.addRaw(summaryMarkdown, true).write();
 
-  const files = [...new Set([...artifactFiles(outputPath, archivePath), ...proofArtifactFiles])];
+  const files = [
+    ...new Set([
+      ...artifactFiles(outputPath, archivePath),
+      ...receiptArchiveDependencyFiles,
+      ...proofArtifactFiles
+    ])
+  ];
   const retentionDays = parsePositiveInteger(inputs.artifactRetentionDays, undefined);
   await uploadArtifacts(artifactName, files, retentionDays);
 
