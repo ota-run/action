@@ -49,6 +49,9 @@ import {
   prioritizeRuntimeNodePath,
   parseInstallMode,
   parseOtaPayload,
+  receiptArchiveClosureFiles,
+  receiptArchiveClosurePaths,
+  receiptArchivePayloadForUpload,
   resolveBootstrapSourceFromContract,
   resolveOtaInstallPlan,
   selectPullRequestNumberForComment,
@@ -120,6 +123,109 @@ test("defaultBaselineArtifactName auto-selects the current artifact on pull requ
     artifactName: "ota-readiness",
     eventName: "pull_request"
   }), "");
+});
+
+test("receipt archive closure keeps every declared local evidence path", async () => {
+  const payload = {
+    mode: "receipt",
+    receipt: {
+      contract_snapshot_ref: "./.ota/contracts/sha256-contract.json"
+    },
+    artifact_routing: [
+      { role: "keep", kind: "receipt_archive", stage_family: "receipt", path: "./.ota/receipts/current.json" },
+      { role: "inspect", kind: "contract_snapshot", stage_family: "receipt", path: "./.ota/contracts/sha256-contract.json" }
+    ]
+  };
+  const expected = [
+    "/workspace/repo/.ota/contracts/sha256-contract.json",
+    "/workspace/repo/.ota/receipts/current.json"
+  ];
+
+  assert.deepEqual(receiptArchiveClosurePaths(payload, "/workspace/repo"), expected);
+  assert.deepEqual(
+    await receiptArchiveClosureFiles(payload, "/workspace/repo", {
+      lstat: async () => ({ isFile: () => true }),
+      realpath: async (file) => file
+    }),
+    expected
+  );
+});
+
+test("receipt archive upload keeps the current receipt when a later diff becomes selected output", () => {
+  const currentReceipt = {
+    mode: "receipt",
+    receipt: {
+      contract_snapshot_ref: "./.ota/contracts/current.json"
+    }
+  };
+  const selectedDiff = {
+    mode: "receipt_diff",
+    current: currentReceipt
+  };
+
+  assert.equal(receiptArchivePayloadForUpload("/workspace/repo/.ota/receipts/current.json", currentReceipt), currentReceipt);
+  assert.equal(receiptArchivePayloadForUpload("", selectedDiff), null);
+  assert.throws(
+    () => receiptArchivePayloadForUpload("/workspace/repo/.ota/receipts/current.json", selectedDiff),
+    /requires the current receipt payload/
+  );
+});
+
+test("receipt archive closure refuses incomplete, unsafe, or non-file dependencies", async () => {
+  assert.throws(
+    () => receiptArchiveClosurePaths({ mode: "receipt", receipt: {} }, "/workspace/repo"),
+    /does not declare immutable `receipt\.contract_snapshot_ref`/
+  );
+  assert.throws(
+    () => receiptArchiveClosurePaths({
+      mode: "receipt",
+      receipt: { contract_snapshot_ref: "../outside.json" }
+    }, "/workspace/repo"),
+    /escapes the working directory/
+  );
+  await assert.rejects(
+    receiptArchiveClosureFiles({
+      mode: "receipt",
+      receipt: { contract_snapshot_ref: "./.ota/contracts/missing.json" }
+    }, "/workspace/repo", {
+      lstat: async () => {
+        throw new Error("ENOENT");
+      },
+      realpath: async (file) => file
+    }),
+    /closure is missing/
+  );
+  await assert.rejects(
+    receiptArchiveClosureFiles({
+      mode: "receipt",
+      receipt: { contract_snapshot_ref: "./.ota/contracts/not-a-file" }
+    }, "/workspace/repo", {
+      lstat: async () => ({ isFile: () => false }),
+      realpath: async (file) => file
+    }),
+    /not a regular file/
+  );
+});
+
+test("receipt archive closure refuses a symlinked ancestor outside the working directory", {
+  skip: process.platform === "win32"
+}, async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ota-action-closure-root-"));
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "ota-action-closure-outside-"));
+  t.after(async () => {
+    await Promise.all([fs.rm(root, { recursive: true, force: true }), fs.rm(outside, { recursive: true, force: true })]);
+  });
+  await fs.mkdir(path.join(root, ".ota"));
+  await fs.writeFile(path.join(outside, "snapshot.json"), "{}", "utf8");
+  await fs.symlink(outside, path.join(root, ".ota", "contracts"), "dir");
+
+  await assert.rejects(
+    receiptArchiveClosureFiles({
+      mode: "receipt",
+      receipt: { contract_snapshot_ref: "./.ota/contracts/snapshot.json" }
+    }, root, fs),
+    /resolves outside the working directory/
+  );
 });
 
 test("buildOtaArgs forwards receipt baseline diff gate flags", () => {
