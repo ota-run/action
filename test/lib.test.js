@@ -47,6 +47,7 @@ import {
   postInstallBinaryDirectories,
   proofArtifactPaths,
   prioritizeRuntimeNodePath,
+  selectFirstRunnableExecutable,
   parseInstallMode,
   parseOtaPayload,
   receiptArchiveClosureFiles,
@@ -988,6 +989,41 @@ test("prioritizeRuntimeNodePath moves the runtime node directory to PATH front",
     }, "/tmp/node/bin/node").PATH,
     "/tmp/node/bin:/bin:/usr/local/bin:/tmp/node"
   );
+});
+
+test("selectFirstRunnableExecutable preserves PATH precedence over an action runtime fallback", async () => {
+  const node20 = "/opt/hostedtoolcache/node/20/bin/node";
+  const node24 = "/opt/actions/node24/bin/node";
+  const selected = await selectFirstRunnableExecutable(
+    [node20],
+    node24,
+    async (candidate) => candidate === node20
+  );
+
+  assert.equal(selected, node20);
+});
+
+test("selectFirstRunnableExecutable skips an invalid PATH candidate", async () => {
+  const invalid = "/opt/missing/node";
+  const node20 = "/opt/hostedtoolcache/node/20/bin/node";
+  const selected = await selectFirstRunnableExecutable(
+    [invalid, node20],
+    "/opt/actions/node24/bin/node",
+    async (candidate) => candidate === node20
+  );
+
+  assert.equal(selected, node20);
+});
+
+test("selectFirstRunnableExecutable falls back to the action runtime when PATH has no Node", async () => {
+  const actionNode24 = "/opt/actions/node24/bin/node";
+  const selected = await selectFirstRunnableExecutable(
+    ["/opt/missing/node"],
+    actionNode24,
+    async () => false
+  );
+
+  assert.equal(selected, actionNode24);
 });
 
 test("normalizeOtaBinInput resolves path-like values from working directory", () => {

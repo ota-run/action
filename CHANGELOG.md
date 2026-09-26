@@ -30,6 +30,10 @@
   local receipt artifact and refusing incomplete historical baselines before comparison; a fresh
   current receipt is archived when no reusable baseline remains
 
+- fixed `ota-run/action` so Ota child invocations preserve the workflow-selected `node` on PATH
+  and use the Action's Node 24 implementation runtime only as a fallback; this prevents an action
+  runtime from silently overriding a repository's declared Node toolchain.
+
 - drift-only gates now annotate only contract-to-CI drift findings when `fail-on-error: false`,
   keeping unrelated Doctor readiness findings out of a passing gate.
 
